@@ -1,0 +1,14 @@
+{
+  "name": "flappy-bird-game",
+  "version": "1.0.0",
+  "description": "Flappy Bird游戏 - 具有全球排行榜功能",
+  "main": "index.html",
+  "scripts": {
+    "start": "serve .",
+    "dev": "serve ."
+  },
+  "dependencies": {
+    "@vercel/kv": "^0.2.3",
+    "serve": "^14.2.1"
+  }
+} 

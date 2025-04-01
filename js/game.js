@@ -147,6 +147,16 @@ class FlappyBirdGame {
             }
         });
         
+        // 提交分数按钮
+        document.getElementById('submit-score-button').addEventListener('click', () => {
+            this.submitScore();
+        });
+        
+        // 查看排行榜按钮
+        document.getElementById('view-leaderboard-button').addEventListener('click', () => {
+            this.fetchLeaderboard();
+        });
+        
         // 窗口大小改变
         window.addEventListener('resize', () => {
             this.handleResize();
@@ -212,6 +222,9 @@ class FlappyBirdGame {
         this.gameOverScreen.style.display = 'flex';
         this.finalScore.textContent = this.score;
         this.highScoreDisplay.textContent = this.highScore;
+        
+        document.getElementById('name-input-container').style.display = 'block';
+        document.getElementById('leaderboard-container').style.display = 'none';
         
         // 设置游戏刚刚结束的标志
         this.gameJustEnded = true;
@@ -599,6 +612,91 @@ class FlappyBirdGame {
         this.ctx.arc(x + size, y, size * 0.7, 0, Math.PI * 2);
         this.ctx.arc(x + size * 0.5, y + size * 0.4, size * 0.6, 0, Math.PI * 2);
         this.ctx.fill();
+    }
+    
+    // 提交分数
+    async submitScore() {
+        const nameInput = document.getElementById('player-name');
+        const name = nameInput.value.trim();
+        
+        if (!name) {
+            alert('请输入你的名字');
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/submit-score', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    name: name,
+                    score: this.score
+                })
+            });
+            
+            if (response.ok) {
+                document.getElementById('name-input-container').style.display = 'none';
+                this.fetchLeaderboard();
+            } else {
+                alert('提交分数失败，请重试');
+            }
+        } catch (error) {
+            console.error('提交分数错误:', error);
+            alert('连接服务器失败');
+        }
+    }
+    
+    // 获取排行榜
+    async fetchLeaderboard() {
+        try {
+            const response = await fetch('/api/get-scores');
+            if (response.ok) {
+                const scores = await response.json();
+                this.displayLeaderboard(scores);
+            } else {
+                alert('获取排行榜失败');
+            }
+        } catch (error) {
+            console.error('获取排行榜错误:', error);
+            alert('连接服务器失败');
+        }
+    }
+    
+    // 显示排行榜
+    displayLeaderboard(scores) {
+        const leaderboardContainer = document.getElementById('leaderboard-container');
+        const leaderboardList = document.getElementById('leaderboard-list');
+        
+        leaderboardList.innerHTML = '';
+        
+        if (scores.length === 0) {
+            leaderboardList.innerHTML = '<p>暂无记录</p>';
+        } else {
+            const table = document.createElement('table');
+            table.innerHTML = `
+                <tr>
+                    <th>排名</th>
+                    <th>名字</th>
+                    <th>分数</th>
+                </tr>
+            `;
+            
+            scores.forEach((score, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${score.name}</td>
+                    <td>${score.score}</td>
+                `;
+                table.appendChild(row);
+            });
+            
+            leaderboardList.appendChild(table);
+        }
+        
+        leaderboardContainer.style.display = 'block';
     }
 }
 

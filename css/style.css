@@ -184,3 +184,52 @@ button:active {
         padding-bottom: env(safe-area-inset-bottom);
     }
 }
+
+/* 排行榜样式 */
+#leaderboard-container {
+    margin-top: 20px;
+    max-width: 90%;
+    width: 100%;
+    max-height: 40vh;
+    overflow-y: auto;
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 8px;
+    padding: 10px;
+}
+
+#leaderboard-list table {
+    width: 100%;
+    border-collapse: collapse;
+    color: white;
+}
+
+#leaderboard-list th, 
+#leaderboard-list td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+#leaderboard-list th {
+    background-color: rgba(0, 0, 0, 0.3);
+    font-weight: bold;
+}
+
+#player-name {
+    padding: 10px;
+    font-size: 16px;
+    border: none;
+    border-radius: 5px;
+    margin-bottom: 10px;
+    width: 80%;
+    max-width: 300px;
+}
+
+#submit-score-button {
+    display: block;
+    margin: 10px auto;
+}
+
+#view-leaderboard-button {
+    margin-top: 10px;
+}
