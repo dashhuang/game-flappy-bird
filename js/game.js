@@ -77,7 +77,8 @@ class FlappyBirdGame {
         
         // 排行榜数据
         this.leaderboardData = [];
-        this.scoreCheckpoint = 50; // 超过此分数更新排行榜
+        this.scoreCheckpoint = 20; // 改为每20分更新一次排行榜
+        this.lastCheckpointReached = 0; // 跟踪上一次达到的检查点
         this.leaderboardChecked = false; // 跟踪是否已经在50分时检查了排行榜
         
         // 根据设备类型显示不同的控制提示
@@ -425,10 +426,12 @@ class FlappyBirdGame {
                     this.increaseDifficulty();
                 }
                 
-                // 检查是否超过分数检查点，如果是则更新排行榜
-                if (this.score >= this.scoreCheckpoint && !this.leaderboardChecked) {
-                    this.leaderboardChecked = true;
+                // 检查是否超过分数检查点，如果是则更新排行榜（每20分检查一次）
+                const currentCheckpoint = Math.floor(this.score / this.scoreCheckpoint) * this.scoreCheckpoint;
+                if (currentCheckpoint > this.lastCheckpointReached) {
+                    this.lastCheckpointReached = currentCheckpoint;
                     // 在后台更新排行榜数据，不阻塞游戏
+                    console.log(`达到得分检查点: ${currentCheckpoint}分，更新排行榜数据`);
                     this.loadLeaderboardInBackground();
                 }
                 
