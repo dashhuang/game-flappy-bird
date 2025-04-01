@@ -15,8 +15,6 @@ body {
     overflow: hidden;
     margin: 0;
     padding: 0;
-    padding-top: env(safe-area-inset-top, 0);
-    padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
 .game-container {
@@ -36,7 +34,6 @@ body {
     position: absolute;
     top: 0;
     left: 0;
-    touch-action: manipulation;
 }
 
 .screen {
@@ -62,6 +59,26 @@ body {
 
 #game-over-screen {
     display: none;
+    overflow-y: auto;
+    max-height: 100vh;
+    padding-bottom: 100px;
+}
+
+.game-over-content {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-bottom: 40px; /* 确保底部有空间 */
+}
+
+.restart-button-container {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    margin-top: 30px;
+    position: sticky;
+    bottom: 20px; /* 在移动设备上保持在底部可见 */
 }
 
 h1, h2 {
@@ -101,8 +118,8 @@ button:active {
 }
 
 #score-display {
-    position: fixed;
-    top: max(20px, env(safe-area-inset-top, 20px));
+    position: absolute;
+    top: 20px;
     right: 20px;
     font-size: 2rem;
     font-weight: bold;
@@ -134,15 +151,11 @@ button:active {
         aspect-ratio: auto;
         width: 100%;
         height: 100vh;
-        height: calc(var(--vh, 1vh) * 100);
         margin: 0;
-        position: fixed;
-        top: 0;
-        left: 0;
     }
     
     #score-display {
-        top: max(20px, env(safe-area-inset-top, 20px));
+        top: 20px;
         right: 20px;
         font-size: 2.5rem;
     }
@@ -184,16 +197,25 @@ button:active {
     }
 }
 
+/* 解决顶部安全区域问题 */
+@supports (padding-top: env(safe-area-inset-top)) {
+    body {
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+}
+
 /* 排行榜样式 */
 #leaderboard-container {
     margin-top: 20px;
     max-width: 90%;
     width: 100%;
-    max-height: 40vh;
+    max-height: 30vh;
     overflow-y: auto;
     background-color: rgba(0, 0, 0, 0.5);
     border-radius: 8px;
     padding: 10px;
+    margin-bottom: 20px;
 }
 
 #leaderboard-list table {
@@ -231,4 +253,23 @@ button:active {
 
 #view-leaderboard-button {
     margin-top: 10px;
+}
+
+/* 移动设备上的特殊样式 */
+@media (max-height: 700px) and (orientation: portrait) {
+    #game-over-screen {
+        padding-top: 60px;
+        justify-content: flex-start;
+    }
+    
+    #leaderboard-container {
+        max-height: 25vh;
+    }
+    
+    #restart-button {
+        position: relative;
+        margin-top: 20px;
+        margin-bottom: 20px;
+        z-index: 20;
+    }
 }

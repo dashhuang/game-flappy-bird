@@ -18,22 +18,26 @@
             <button id="start-button">开始游戏</button>
         </div>
         <div id="game-over-screen" class="screen">
-            <h2>游戏结束</h2>
-            <p>你的分数: <span id="final-score">0</span></p>
-            <p>最高分: <span id="high-score">0</span></p>
-            
-            <div id="name-input-container">
-                <p>输入你的名字记录成绩:</p>
-                <input type="text" id="player-name" placeholder="输入名字" maxlength="15" />
-                <button id="submit-score-button">提交分数</button>
+            <div class="game-over-content">
+                <h2>游戏结束</h2>
+                <p>你的分数: <span id="final-score">0</span></p>
+                <p>最高分: <span id="high-score">0</span></p>
+                
+                <div id="name-input-container">
+                    <p>输入你的名字记录成绩:</p>
+                    <input type="text" id="player-name" placeholder="输入名字" maxlength="15" />
+                    <button id="submit-score-button">提交分数</button>
+                </div>
+                
+                <div id="leaderboard-container">
+                    <h3>全球排行榜</h3>
+                    <div id="leaderboard-list"></div>
+                </div>
+                
+                <div class="restart-button-container">
+                    <button id="restart-button">再玩一次</button>
+                </div>
             </div>
-            
-            <div id="leaderboard-container">
-                <h3>全球排行榜</h3>
-                <div id="leaderboard-list"></div>
-            </div>
-            
-            <button id="restart-button">再玩一次</button>
         </div>
         <div id="score-display">0</div>
     </div>

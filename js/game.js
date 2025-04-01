@@ -290,6 +290,22 @@ class FlappyBirdGame {
         // 显示排行榜数据
         this.displayLeaderboard(this.leaderboardData);
         
+        // 移动设备上，确保"再玩一次"按钮可见
+        if (this.isMobile) {
+            // 延迟一点，等排行榜加载完成
+            setTimeout(() => {
+                // 滚动到底部确保按钮可见
+                const gameOverScreen = document.getElementById('game-over-screen');
+                const restartButton = document.getElementById('restart-button');
+                
+                // 如果内容过长，确保按钮可见
+                if (gameOverScreen.scrollHeight > gameOverScreen.clientHeight) {
+                    // 将"再玩一次"按钮放到可视范围内
+                    restartButton.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                }
+            }, 500);
+        }
+        
         // 设置游戏刚刚结束的标志
         this.gameJustEnded = true;
         this.canRestartAfterGameOver = false;
