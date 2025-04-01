@@ -8,7 +8,7 @@
     "dev": "serve ."
   },
   "dependencies": {
-    "@vercel/kv": "^0.2.3",
+    "redis": "^4.6.13",
     "serve": "^14.2.1"
   }
 } 
