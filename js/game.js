@@ -3,6 +3,18 @@
  * 具有响应式设计，支持桌面和移动设备，横屏和竖屏模式
  */
 
+// 修复移动设备100vh问题
+function setViewportHeight() {
+    // 计算实际视口高度
+    let vh = window.innerHeight * 0.01;
+    // 设置CSS变量
+    document.documentElement.style.setProperty('--vh', `${vh}px`);
+}
+
+// 初始设置和窗口大小变化时更新
+setViewportHeight();
+window.addEventListener('resize', setViewportHeight);
+
 // 游戏常量
 const GRAVITY = 0.4;             // 重力参数
 const FLAP_POWER = -9;           // 跳跃力度
@@ -77,9 +89,8 @@ class FlappyBirdGame {
         
         // 排行榜数据
         this.leaderboardData = [];
-        this.scoreCheckpoint = 20; // 改为每20分更新一次排行榜
-        this.lastCheckpointReached = 0; // 跟踪上一次达到的检查点
-        this.leaderboardChecked = false; // 跟踪是否已经在50分时检查了排行榜
+        this.scoreThreshold = 2; // 更新排行榜的分数阈值
+        this.leaderboardUpdated = false; // 跟踪本局游戏是否已更新过排行榜
         
         // 根据设备类型显示不同的控制提示
         this.updateControlsDisplay();
@@ -182,6 +193,9 @@ class FlappyBirdGame {
     
     // 处理窗口大小改变
     handleResize() {
+        // 更新视口高度变量
+        setViewportHeight();
+        
         // 获取视窗的实际尺寸
         const viewWidth = window.innerWidth;
         const viewHeight = window.innerHeight;
@@ -221,6 +235,18 @@ class FlappyBirdGame {
     // 为移动设备进行额外调整
     adjustForMobile() {
         if (this.isMobile) {
+            // 防止页面滚动和弹跳
+            document.body.style.overflow = 'hidden';
+            document.documentElement.style.overflow = 'hidden';
+            document.addEventListener('touchmove', function(e) {
+                if (e.touches.length > 1) {
+                    e.preventDefault();
+                }
+            }, { passive: false });
+            
+            // 立即更新视口高度
+            setViewportHeight();
+            
             // 检查是否有安全区域insets可用
             if (window.CSS && CSS.supports('padding-top: env(safe-area-inset-top)')) {
                 const safeAreaTop = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--safe-area-inset-top')) || 0;
@@ -228,6 +254,8 @@ class FlappyBirdGame {
                 // 如果有安全区域，调整游戏元素
                 if (safeAreaTop > 0) {
                     this.canvas.style.paddingTop = `${safeAreaTop}px`;
+                    // 调整分数显示位置，确保始终可见
+                    document.getElementById('score-display').style.top = `${Math.max(20, safeAreaTop)}px`;
                 }
             }
         }
@@ -343,7 +371,7 @@ class FlappyBirdGame {
         this.currentPipeSpeed = PIPE_SPEED_INITIAL;
         
         // 重置排行榜检查点状态
-        this.leaderboardChecked = false;
+        this.leaderboardUpdated = false;
         
         // 记录当前的最高分
         this.initialHighScore = this.highScore;
@@ -426,12 +454,11 @@ class FlappyBirdGame {
                     this.increaseDifficulty();
                 }
                 
-                // 检查是否超过分数检查点，如果是则更新排行榜（每20分检查一次）
-                const currentCheckpoint = Math.floor(this.score / this.scoreCheckpoint) * this.scoreCheckpoint;
-                if (currentCheckpoint > this.lastCheckpointReached) {
-                    this.lastCheckpointReached = currentCheckpoint;
+                // 检查是否达到分数阈值且尚未更新过排行榜，如果是则更新排行榜（每局游戏只更新一次）
+                if (this.score >= this.scoreThreshold && !this.leaderboardUpdated) {
+                    this.leaderboardUpdated = true;
                     // 在后台更新排行榜数据，不阻塞游戏
-                    console.log(`达到得分检查点: ${currentCheckpoint}分，更新排行榜数据`);
+                    console.log(`达到得分阈值: ${this.scoreThreshold}分，更新排行榜数据`);
                     this.loadLeaderboardInBackground();
                 }
                 
