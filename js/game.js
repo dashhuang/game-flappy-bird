@@ -54,6 +54,8 @@ class FlappyBirdGame {
         this.pipes = [];
         this.score = 0;
         this.highScore = localStorage.getItem('flappyBirdHighScore') || 0;
+        // 记录游戏开始时的初始最高分，用于判断是否打破纪录
+        this.initialHighScore = this.highScore;
         this.gameState = GAME_STATE.MENU;
         
         // 难度控制
@@ -236,6 +238,9 @@ class FlappyBirdGame {
         this.startScreen.style.display = 'none';
         this.gameOverScreen.style.display = 'none';
         this.scoreDisplay.style.display = 'block';
+        
+        // 记录游戏开始时的最高分
+        this.initialHighScore = this.highScore;
     }
     
     // 游戏结束
@@ -269,13 +274,13 @@ class FlappyBirdGame {
     
     // 检查分数是否有资格提交
     checkIfScoreQualifies() {
-        // 首先检查是否超过了自己的最高分
-        const beatsPersonalBest = this.score > this.highScore;
+        // 首先检查是否超过了游戏开始时的最高分（而非当前最高分）
+        const beatsPersonalBest = this.score > this.initialHighScore;
         
         // 检查是否能进入全球排行榜前10
         const canEnterTopTen = this.isTopTenScore(this.score);
         
-        console.log(`分数检查 - 当前: ${this.score}, 个人最高: ${this.highScore}, 超过最高分: ${beatsPersonalBest}, 能进前10: ${canEnterTopTen}`);
+        console.log(`分数检查 - 当前: ${this.score}, 初始最高分: ${this.initialHighScore}, 当前最高分: ${this.highScore}, 超过最高分: ${beatsPersonalBest}, 能进前10: ${canEnterTopTen}`);
         
         // 只有当两个条件都满足时才显示提交界面
         if (beatsPersonalBest && canEnterTopTen) {
@@ -338,6 +343,9 @@ class FlappyBirdGame {
         
         // 重置排行榜检查点状态
         this.leaderboardChecked = false;
+        
+        // 记录当前的最高分
+        this.initialHighScore = this.highScore;
         
         // 随机生成新颜色
         this.birdColor = this.getRandomColor();
