@@ -38,6 +38,9 @@ class FlappyBirdGame {
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight;
         
+        // 检测是否为移动设备
+        this.isMobile = window.navigator.userAgent.match(/Mobile|Android|iPhone|iPad|iPod/i);
+        
         // 游戏元素
         this.bird = {
             x: this.canvas.width / 3,
@@ -74,6 +77,9 @@ class FlappyBirdGame {
         this.leaderboardData = [];
         this.scoreCheckpoint = 50; // 超过此分数更新排行榜
         this.leaderboardChecked = false; // 跟踪是否已经在50分时检查了排行榜
+        
+        // 根据设备类型显示不同的控制提示
+        this.updateControlsDisplay();
         
         // 事件监听
         this.setupEventListeners();
@@ -193,12 +199,25 @@ class FlappyBirdGame {
         this.adjustForMobile();
     }
     
+    // 更新控制提示显示
+    updateControlsDisplay() {
+        const desktopControls = document.getElementById('desktop-controls');
+        const mobileControls = document.getElementById('mobile-controls');
+        
+        if (this.isMobile) {
+            // 移动设备：隐藏桌面提示，显示移动提示
+            if (desktopControls) desktopControls.style.display = 'none';
+            if (mobileControls) mobileControls.style.display = 'block';
+        } else {
+            // 桌面设备：显示桌面提示，隐藏移动提示
+            if (desktopControls) desktopControls.style.display = 'block';
+            if (mobileControls) mobileControls.style.display = 'none';
+        }
+    }
+    
     // 为移动设备进行额外调整
     adjustForMobile() {
-        // 检测是否为移动设备
-        const isMobile = window.navigator.userAgent.match(/Mobile|Android|iPhone|iPad|iPod/i);
-        
-        if (isMobile) {
+        if (this.isMobile) {
             // 检查是否有安全区域insets可用
             if (window.CSS && CSS.supports('padding-top: env(safe-area-inset-top)')) {
                 const safeAreaTop = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--safe-area-inset-top')) || 0;
