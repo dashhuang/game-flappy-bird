@@ -50,6 +50,7 @@ body {
     color: white;
     text-align: center;
     z-index: 10;
+    padding: 20px;
 }
 
 #start-screen {
@@ -62,27 +63,38 @@ body {
 
 h1, h2 {
     margin-bottom: 20px;
-    font-size: 2rem;
+    font-size: 2.5rem;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
 }
 
 p {
     margin-bottom: 20px;
-    font-size: 1rem;
+    font-size: 1.2rem;
+    line-height: 1.4;
+    max-width: 90%;
 }
 
 button {
-    padding: 10px 20px;
-    font-size: 1rem;
+    padding: 15px 30px;
+    font-size: 1.2rem;
     background-color: #FFD700;
     color: #000;
     border: none;
-    border-radius: 5px;
+    border-radius: 8px;
     cursor: pointer;
-    margin-top: 10px;
+    margin-top: 20px;
+    font-weight: bold;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    transition: transform 0.1s, background-color 0.2s;
 }
 
 button:hover {
     background-color: #FFC107;
+}
+
+button:active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 #score-display {
@@ -123,22 +135,45 @@ button:hover {
     }
     
     #score-display {
-        top: 10px;
-        right: 10px;
-        font-size: 1.5rem;
+        top: 20px;
+        right: 20px;
+        font-size: 2.5rem;
     }
     
     h1, h2 {
-        font-size: 1.5rem;
+        font-size: 2.8rem;
+        margin-bottom: 30px;
     }
     
     p {
-        font-size: 0.9rem;
+        font-size: 1.4rem;
+        margin-bottom: 25px;
     }
     
     button {
-        padding: 8px 16px;
-        font-size: 0.9rem;
+        padding: 16px 36px;
+        font-size: 1.5rem;
+        border-radius: 10px;
+        margin-top: 30px;
+    }
+}
+
+/* 添加小屏幕手机适配 */
+@media (max-height: 600px) and (orientation: portrait) {
+    h1, h2 {
+        font-size: 2.2rem;
+        margin-bottom: 15px;
+    }
+    
+    p {
+        font-size: 1.2rem;
+        margin-bottom: 15px;
+    }
+    
+    button {
+        padding: 12px 28px;
+        font-size: 1.3rem;
+        margin-top: 15px;
     }
 }
 
