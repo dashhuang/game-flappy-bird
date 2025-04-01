@@ -66,6 +66,10 @@ class FlappyBirdGame {
         this.finalScore = document.getElementById('final-score');
         this.highScoreDisplay = document.getElementById('high-score');
         
+        // 游戏结束时间控制
+        this.gameJustEnded = false;
+        this.canRestartAfterGameOver = true;
+        
         // 事件监听
         this.setupEventListeners();
         
@@ -95,8 +99,8 @@ class FlappyBirdGame {
                     this.startGame();
                 } else if (this.gameState === GAME_STATE.PLAYING) {
                     this.flapBird();
-                } else if (this.gameState === GAME_STATE.GAME_OVER) {
-                    // 游戏结束状态下，按空格键重新开始
+                } else if (this.gameState === GAME_STATE.GAME_OVER && this.canRestartAfterGameOver) {
+                    // 游戏结束状态下，按空格键重新开始（前提是可以重新开始）
                     this.resetGame();
                     this.startGame();
                 }
@@ -136,8 +140,11 @@ class FlappyBirdGame {
         
         // 重新开始按钮
         document.getElementById('restart-button').addEventListener('click', () => {
-            this.resetGame();
-            this.startGame();
+            // 只有在允许重新开始的情况下才能点击
+            if (this.canRestartAfterGameOver) {
+                this.resetGame();
+                this.startGame();
+            }
         });
         
         // 窗口大小改变
@@ -205,6 +212,16 @@ class FlappyBirdGame {
         this.gameOverScreen.style.display = 'flex';
         this.finalScore.textContent = this.score;
         this.highScoreDisplay.textContent = this.highScore;
+        
+        // 设置游戏刚刚结束的标志
+        this.gameJustEnded = true;
+        this.canRestartAfterGameOver = false;
+        
+        // 1秒后允许重新开始游戏
+        setTimeout(() => {
+            this.canRestartAfterGameOver = true;
+            this.gameJustEnded = false;
+        }, 1000);
     }
     
     // 重置游戏
