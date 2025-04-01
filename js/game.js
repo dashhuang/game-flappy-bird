@@ -79,6 +79,9 @@ class FlappyBirdGame {
         // 动画帧请求ID
         this.animationFrameId = null;
         
+        // 为移动设备进行调整
+        this.adjustForMobile();
+        
         // 开始游戏循环
         this.loop();
     }
@@ -100,8 +103,8 @@ class FlappyBirdGame {
             }
         });
         
-        // 触摸/点击事件 - 修改为全屏幕点击均可控制小鸟
-        document.addEventListener('click', (e) => {
+        // 鼠标按下事件 - 替换click事件，提供更好的反应速度
+        document.addEventListener('mousedown', (e) => {
             // 防止按钮点击事件重复触发
             if (e.target.tagName.toLowerCase() === 'button') {
                 return;
@@ -111,6 +114,20 @@ class FlappyBirdGame {
                 this.flapBird();
             }
         });
+        
+        // 触摸开始事件 - 针对移动设备
+        document.addEventListener('touchstart', (e) => {
+            // 防止按钮点击事件重复触发
+            if (e.target.tagName.toLowerCase() === 'button') {
+                return;
+            }
+            
+            if (this.gameState === GAME_STATE.PLAYING) {
+                this.flapBird();
+                // 防止触摸事件的默认行为（如滚动）
+                e.preventDefault();
+            }
+        }, { passive: false });
         
         // 开始按钮
         document.getElementById('start-button').addEventListener('click', () => {
@@ -136,15 +153,41 @@ class FlappyBirdGame {
     
     // 处理窗口大小改变
     handleResize() {
-        this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight;
+        // 获取视窗的实际尺寸
+        const viewWidth = window.innerWidth;
+        const viewHeight = window.innerHeight;
+        
+        // 设置canvas尺寸
+        this.canvas.width = viewWidth;
+        this.canvas.height = viewHeight;
         
         // 重新计算鸟的位置
-        this.bird.x = this.canvas.width / 3;
+        this.bird.x = viewWidth / 3;
         
         // 如果在菜单状态，重置鸟的位置
         if (this.gameState === GAME_STATE.MENU) {
-            this.bird.y = this.canvas.height / 2;
+            this.bird.y = viewHeight / 2;
+        }
+        
+        // 对于移动设备，进行额外的调整
+        this.adjustForMobile();
+    }
+    
+    // 为移动设备进行额外调整
+    adjustForMobile() {
+        // 检测是否为移动设备
+        const isMobile = window.navigator.userAgent.match(/Mobile|Android|iPhone|iPad|iPod/i);
+        
+        if (isMobile) {
+            // 检查是否有安全区域insets可用
+            if (window.CSS && CSS.supports('padding-top: env(safe-area-inset-top)')) {
+                const safeAreaTop = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--safe-area-inset-top')) || 0;
+                
+                // 如果有安全区域，调整游戏元素
+                if (safeAreaTop > 0) {
+                    this.canvas.style.paddingTop = `${safeAreaTop}px`;
+                }
+            }
         }
     }
     
