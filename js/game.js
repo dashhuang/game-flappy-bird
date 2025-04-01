@@ -226,7 +226,13 @@ class FlappyBirdGame {
         this.finalScore.textContent = this.score;
         this.highScoreDisplay.textContent = this.highScore;
         
-        document.getElementById('name-input-container').style.display = 'block';
+        // 默认隐藏名字输入框
+        document.getElementById('name-input-container').style.display = 'none';
+        
+        // 检查玩家分数是否满足条件：
+        // 1. 超过了自己的最高分
+        // 2. 能够进入全球排行榜前10
+        this.checkIfScoreQualifies();
         
         // 显示排行榜数据
         this.displayLeaderboard(this.leaderboardData);
@@ -240,6 +246,53 @@ class FlappyBirdGame {
             this.canRestartAfterGameOver = true;
             this.gameJustEnded = false;
         }, 1000);
+    }
+    
+    // 检查分数是否有资格提交
+    checkIfScoreQualifies() {
+        // 首先检查是否超过了自己的最高分
+        const beatsPersonalBest = this.score > this.highScore;
+        
+        // 检查是否能进入全球排行榜前10
+        const canEnterTopTen = this.isTopTenScore(this.score);
+        
+        console.log(`分数检查 - 当前: ${this.score}, 个人最高: ${this.highScore}, 超过最高分: ${beatsPersonalBest}, 能进前10: ${canEnterTopTen}`);
+        
+        // 只有当两个条件都满足时才显示提交界面
+        if (beatsPersonalBest && canEnterTopTen) {
+            document.getElementById('name-input-container').style.display = 'block';
+        }
+    }
+    
+    // 检查分数是否能进入前10
+    isTopTenScore(score) {
+        // 排行榜为空或没有数据的情况
+        if (!this.leaderboardData || !Array.isArray(this.leaderboardData) || this.leaderboardData.length === 0) {
+            // 如果排行榜数据还没加载或为空，任何非零分数都可以提交
+            return score > 0;
+        }
+        
+        // 如果排行榜还没有10个记录，任何非零分数都可以进入
+        if (this.leaderboardData.length < 10) {
+            return score > 0;
+        }
+        
+        try {
+            // 检查分数是否大于排行榜中最低的分数
+            // 获取排行榜的最低分
+            const sortedScores = [...this.leaderboardData]
+                .sort((a, b) => parseInt(b.score) - parseInt(a.score));
+            
+            // 安全地获取第10名的分数，防止undefined
+            const lowestTopScore = sortedScores.length >= 10 ? 
+                parseInt(sortedScores[9].score) : 0;
+            
+            return score > lowestTopScore;
+        } catch (error) {
+            console.error('比较排行榜分数时出错:', error);
+            // 出错时保守处理，允许提交
+            return true;
+        }
     }
     
     // 重置游戏
