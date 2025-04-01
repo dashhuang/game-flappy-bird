@@ -70,6 +70,11 @@ class FlappyBirdGame {
         this.gameJustEnded = false;
         this.canRestartAfterGameOver = true;
         
+        // 排行榜数据
+        this.leaderboardData = [];
+        this.scoreCheckpoint = 50; // 超过此分数更新排行榜
+        this.leaderboardChecked = false; // 跟踪是否已经在50分时检查了排行榜
+        
         // 事件监听
         this.setupEventListeners();
         
@@ -85,6 +90,9 @@ class FlappyBirdGame {
         
         // 为移动设备进行调整
         this.adjustForMobile();
+        
+        // 在后台加载排行榜数据
+        this.loadLeaderboardInBackground();
         
         // 开始游戏循环
         this.loop();
@@ -150,11 +158,6 @@ class FlappyBirdGame {
         // 提交分数按钮
         document.getElementById('submit-score-button').addEventListener('click', () => {
             this.submitScore();
-        });
-        
-        // 查看排行榜按钮
-        document.getElementById('view-leaderboard-button').addEventListener('click', () => {
-            this.fetchLeaderboard();
         });
         
         // 窗口大小改变
@@ -224,7 +227,9 @@ class FlappyBirdGame {
         this.highScoreDisplay.textContent = this.highScore;
         
         document.getElementById('name-input-container').style.display = 'block';
-        document.getElementById('leaderboard-container').style.display = 'none';
+        
+        // 显示排行榜数据
+        this.displayLeaderboard(this.leaderboardData);
         
         // 设置游戏刚刚结束的标志
         this.gameJustEnded = true;
@@ -258,6 +263,9 @@ class FlappyBirdGame {
         this.currentPipeGap = PIPE_GAP_INITIAL;
         this.currentPipeSpawnInterval = PIPE_SPAWN_INTERVAL_INITIAL;
         this.currentPipeSpeed = PIPE_SPEED_INITIAL;
+        
+        // 重置排行榜检查点状态
+        this.leaderboardChecked = false;
         
         // 随机生成新颜色
         this.birdColor = this.getRandomColor();
@@ -335,6 +343,13 @@ class FlappyBirdGame {
                 if (this.pipesPassedCount % DIFFICULTY_INCREASE_RATE === 0) {
                     console.log(`达到难度增加点！(每${DIFFICULTY_INCREASE_RATE}对管道)`);
                     this.increaseDifficulty();
+                }
+                
+                // 检查是否超过分数检查点，如果是则更新排行榜
+                if (this.score >= this.scoreCheckpoint && !this.leaderboardChecked) {
+                    this.leaderboardChecked = true;
+                    // 在后台更新排行榜数据，不阻塞游戏
+                    this.loadLeaderboardInBackground();
                 }
                 
                 // 更新最高分
@@ -614,54 +629,26 @@ class FlappyBirdGame {
         this.ctx.fill();
     }
     
-    // 提交分数
-    async submitScore() {
-        const nameInput = document.getElementById('player-name');
-        const name = nameInput.value.trim();
-        
-        if (!name) {
-            alert('请输入你的名字');
-            return;
-        }
-        
-        try {
-            const response = await fetch('/api/submit-score', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    name: name,
-                    score: this.score
-                })
+    // 在后台加载排行榜数据
+    loadLeaderboardInBackground() {
+        // 使用fetch API在后台加载排行榜
+        fetch('/api/get-scores')
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                }
+                return [];
+            })
+            .then(data => {
+                this.leaderboardData = data;
+                console.log("排行榜数据加载成功");
+            })
+            .catch(error => {
+                // 只在控制台记录错误，不显示给用户
+                console.error("加载排行榜失败:", error);
+                // 失败时使用空数组
+                this.leaderboardData = [];
             });
-            
-            if (response.ok) {
-                document.getElementById('name-input-container').style.display = 'none';
-                this.fetchLeaderboard();
-            } else {
-                alert('提交分数失败，请重试');
-            }
-        } catch (error) {
-            console.error('提交分数错误:', error);
-            alert('连接服务器失败');
-        }
-    }
-    
-    // 获取排行榜
-    async fetchLeaderboard() {
-        try {
-            const response = await fetch('/api/get-scores');
-            if (response.ok) {
-                const scores = await response.json();
-                this.displayLeaderboard(scores);
-            } else {
-                alert('获取排行榜失败');
-            }
-        } catch (error) {
-            console.error('获取排行榜错误:', error);
-            alert('连接服务器失败');
-        }
     }
     
     // 显示排行榜
@@ -697,6 +684,47 @@ class FlappyBirdGame {
         }
         
         leaderboardContainer.style.display = 'block';
+    }
+    
+    // 提交分数
+    async submitScore() {
+        const nameInput = document.getElementById('player-name');
+        const name = nameInput.value.trim();
+        
+        if (!name) {
+            alert('请输入你的名字');
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/submit-score', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    name: name,
+                    score: this.score
+                })
+            });
+            
+            if (response.ok) {
+                document.getElementById('name-input-container').style.display = 'none';
+                
+                // 重新获取并显示更新后的排行榜数据
+                const leaderboardResponse = await fetch('/api/get-scores');
+                if (leaderboardResponse.ok) {
+                    const scores = await leaderboardResponse.json();
+                    this.leaderboardData = scores;
+                    this.displayLeaderboard(scores);
+                }
+            } else {
+                alert('提交分数失败，请重试');
+            }
+        } catch (error) {
+            console.error('提交分数错误:', error);
+            alert('连接服务器失败');
+        }
     }
 }
 
