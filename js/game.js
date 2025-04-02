@@ -25,7 +25,7 @@ const PIPE_GAP_INITIAL = 220;    // 初始管道间隙
 // 难度最终值 - 提高难度
 const PIPE_SPAWN_INTERVAL_FINAL = 1100; // 最终管道生成间隔（减少）
 const PIPE_GAP_FINAL = 110;      // 最终管道间隙（减少）
-const PIPE_SPEED_FINAL = 4.0;    // 最终管道速度（增加）
+const PIPE_SPEED_FINAL = 3.5;    // 最终管道速度（增加）
 
 const PIPE_WIDTH = 80;
 const BIRD_WIDTH = 40;
