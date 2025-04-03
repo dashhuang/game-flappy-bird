@@ -11,6 +11,16 @@
 <body>
     <div class="game-container">
         <canvas id="game-canvas"></canvas>
+        
+        <!-- 加载界面 -->
+        <div id="loading-screen" class="screen">
+            <div class="loading-content">
+                <h2>加载中...</h2>
+                <div class="loading-spinner"></div>
+                <p id="loading-message">正在加载游戏配置</p>
+            </div>
+        </div>
+        
         <div id="start-screen" class="screen">
             <h1>Flappy Bird</h1>
             <p id="desktop-controls">点击屏幕或按空格键使小鸟向上飞</p>
@@ -40,6 +50,13 @@
                 </div>
             </div>
         </div>
+        
+        <!-- 更新通知横幅 -->
+        <div id="update-notification" class="notification" style="display: none;">
+            <p>游戏已更新！新的设置将在下一局游戏生效</p>
+            <button id="close-notification">✕</button>
+        </div>
+        
         <div id="score-display">0</div>
     </div>
     <script src="js/game.js"></script>

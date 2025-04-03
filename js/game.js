@@ -15,49 +15,30 @@ function setViewportHeight() {
 setViewportHeight();
 window.addEventListener('resize', setViewportHeight);
 
-// 游戏常量
-const GRAVITY = 0.4;             // 重力参数
-const FLAP_POWER = -9;           // 跳跃力度
-
-// 初始难度参数 (0-15分)
-const PIPE_SPEED_INITIAL = 2.5;        // 初始管道速度
-const PIPE_SPAWN_INTERVAL_INITIAL = 2000; // 初始管道生成间隔
-const PIPE_GAP_INITIAL = 220;          // 初始管道间隙
-const HEIGHT_VARIATION_INITIAL = 200;  // 初始高度变化幅度（像素）
-
-// 中等难度参数 (15-100分)
-const PIPE_SPEED_MEDIUM = 3.0;           // 中等难度管道速度
-const PIPE_SPAWN_INTERVAL_MEDIUM = 1600; // 中等难度管道生成间隔 - 更平滑的过渡
-const PIPE_GAP_MEDIUM = 180;             // 中等难度管道间隙 - 更友好的设计
-const HEIGHT_VARIATION_MEDIUM = 400;     // 中等难度高度变化幅度（像素）
-
-// 最终难度参数 (100分以上)
-const PIPE_SPEED_FINAL = 3.0;           // 最终管道速度 - 保持稳定挑战性
-const PIPE_SPAWN_INTERVAL_FINAL = 1400; // 最终管道生成间隔 - 平衡的难度
-const PIPE_GAP_FINAL = 120;             // 最终管道间隙 - 有挑战但不过于困难
-const HEIGHT_VARIATION_FINAL = 600;     // 最终高度变化幅度（像素）- 增加垂直变化挑战性
-
-// 难度控制分数阈值
-const SCORE_MEDIUM_DIFFICULTY = 15;  // 中等难度分数阈值
-const SCORE_HARD_DIFFICULTY = 100;    // 最高难度分数阈值
-// 每5分数增加一次难度
-const SCORE_DIFFICULTY_STEP = 5;     // 每X分增加一次难度
-
-const PIPE_WIDTH = 80;
-const BIRD_WIDTH = 40;
-const BIRD_HEIGHT = 30;
-const GROUND_HEIGHT = 50;
-
 // 游戏状态
 const GAME_STATE = {
     MENU: 0,
     PLAYING: 1,
-    GAME_OVER: 2
+    GAME_OVER: 2,
+    LOADING: 3  // 加载状态
 };
 
 // 游戏类
 class FlappyBirdGame {
     constructor() {
+        // 游戏版本和配置状态
+        this.gameVersion = "1.0.0";
+        this.isConfigLoaded = false;
+        this.configLastChecked = 0;
+        this.configCheckInterval = 60000; // 每分钟检查一次配置更新
+        
+        // 初始化默认配置（用于回退）
+        this.initDefaultConfig();
+        
+        // 从服务器加载配置
+        this.loadGameConfig();
+        
+        // 初始化游戏画布
         this.canvas = document.getElementById('game-canvas');
         this.ctx = this.canvas.getContext('2d');
         this.canvas.width = window.innerWidth;
@@ -66,114 +47,73 @@ class FlappyBirdGame {
         // 检测是否为移动设备
         this.isMobile = window.navigator.userAgent.match(/Mobile|Android|iPhone|iPad|iPod/i);
         
-        // 游戏元素
-        this.bird = {
-            x: this.canvas.width / 3,
-            y: this.canvas.height / 2,
-            width: BIRD_WIDTH,
-            height: BIRD_HEIGHT,
-            velocity: 0,
-            rotation: 0
-        };
-        
-        this.pipes = [];
-        this.score = 0;
-        this.highScore = localStorage.getItem('flappyBirdHighScore') || 0;
-        // 记录游戏开始时的初始最高分，用于判断是否打破纪录
-        this.initialHighScore = this.highScore;
-        this.gameState = GAME_STATE.MENU;
-        
-        // 难度控制
-        this.pipesPassedCount = 0;
-        this.currentPipeGap = PIPE_GAP_INITIAL;
-        this.currentPipeSpawnInterval = PIPE_SPAWN_INTERVAL_INITIAL;
-        this.currentPipeSpeed = PIPE_SPEED_INITIAL;
-        
         // 初始化UI元素
         this.startScreen = document.getElementById('start-screen');
         this.gameOverScreen = document.getElementById('game-over-screen');
         this.scoreDisplay = document.getElementById('score-display');
         this.finalScore = document.getElementById('final-score');
         this.highScoreDisplay = document.getElementById('high-score');
+        this.loadingScreen = document.getElementById('loading-screen');
         
-        // 游戏结束时间控制
+        // 设置游戏状态
+        this.gameState = GAME_STATE.LOADING;
+        
+        // 游戏数据初始化
+        this.pipes = [];
+        this.score = 0;
+        this.highScore = localStorage.getItem('flappyBirdHighScore') || 0;
+        this.initialHighScore = this.highScore;
+        this.leaderboardData = [];
+        this.scoreThreshold = 2;
+        this.leaderboardUpdated = false;
+        this.scoreSubmitted = false;
         this.gameJustEnded = false;
         this.canRestartAfterGameOver = true;
-        
-        // 排行榜数据
-        this.leaderboardData = [];
-        this.scoreThreshold = 2; // 更新排行榜的分数阈值
-        this.leaderboardUpdated = false; // 跟踪本局游戏是否已更新过排行榜
-        this.scoreSubmitted = false; // 跟踪分数是否已被提交
-        
-        // 根据设备类型显示不同的控制提示
-        this.updateControlsDisplay();
-        
-        // 事件监听
-        this.setupEventListeners();
-        
-        // 随机生成颜色
-        this.birdColor = this.getRandomColor();
-        this.pipeColors = this.generatePipeColors();
-        
-        // 控制变量
         this.lastPipeSpawn = 0;
-        
-        // 动画帧请求ID
+        this.scoreDisplayed = false;
         this.animationFrameId = null;
         
-        // 为移动设备进行调整
-        this.adjustForMobile();
+        // 设置事件监听
+        this.setupEventListeners();
+        
+        // 启动配置检查定时器
+        this.startConfigCheckTimer();
         
         // 在后台加载排行榜数据
         this.loadLeaderboardInBackground();
         
-        // 开始游戏循环
-        this.loop();
+        // 初始化游戏循环
+        this.lastTime = 0;
+        requestAnimationFrame((t) => this.loop(t));
     }
     
     // 设置事件监听器
     setupEventListeners() {
         // 键盘事件
-        window.addEventListener('keydown', (e) => {
-            if (e.code === 'Space' || e.key === ' ') {
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
                 if (this.gameState === GAME_STATE.MENU) {
                     this.startGame();
                 } else if (this.gameState === GAME_STATE.PLAYING) {
                     this.flapBird();
                 } else if (this.gameState === GAME_STATE.GAME_OVER && this.canRestartAfterGameOver) {
-                    // 游戏结束状态下，按空格键重新开始（前提是可以重新开始）
                     this.resetGame();
                     this.startGame();
                 }
             }
         });
         
-        // 鼠标按下事件 - 替换click事件，提供更好的反应速度
-        document.addEventListener('mousedown', (e) => {
-            // 防止按钮点击事件重复触发
-            if (e.target.tagName.toLowerCase() === 'button') {
-                return;
-            }
-            
-            if (this.gameState === GAME_STATE.PLAYING) {
+        // 鼠标/触摸事件
+        this.canvas.addEventListener('click', () => {
+            if (this.gameState === GAME_STATE.MENU) {
+                this.startGame();
+            } else if (this.gameState === GAME_STATE.PLAYING) {
                 this.flapBird();
+            } else if (this.gameState === GAME_STATE.GAME_OVER && this.canRestartAfterGameOver) {
+                this.resetGame();
+                this.startGame();
             }
         });
-        
-        // 触摸开始事件 - 针对移动设备
-        document.addEventListener('touchstart', (e) => {
-            // 防止按钮点击事件重复触发
-            if (e.target.tagName.toLowerCase() === 'button') {
-                return;
-            }
-            
-            if (this.gameState === GAME_STATE.PLAYING) {
-                this.flapBird();
-                // 防止触摸事件的默认行为（如滚动）
-                e.preventDefault();
-            }
-        }, { passive: false });
         
         // 开始按钮
         document.getElementById('start-button').addEventListener('click', () => {
@@ -193,6 +133,17 @@ class FlappyBirdGame {
         document.getElementById('submit-score-button').addEventListener('click', () => {
             this.submitScore();
         });
+        
+        // 关闭更新通知按钮
+        const closeNotificationButton = document.getElementById('close-notification');
+        if (closeNotificationButton) {
+            closeNotificationButton.addEventListener('click', () => {
+                const notification = document.getElementById('update-notification');
+                if (notification) {
+                    notification.style.display = 'none';
+                }
+            });
+        }
         
         // 窗口大小改变
         window.addEventListener('resize', () => {
@@ -400,8 +351,8 @@ class FlappyBirdGame {
         this.bird = {
             x: this.canvas.width / 3,
             y: this.canvas.height / 2,
-            width: BIRD_WIDTH,
-            height: BIRD_HEIGHT,
+            width: this.BIRD_WIDTH,
+            height: this.BIRD_HEIGHT,
             velocity: 0,
             rotation: 0
         };
@@ -413,9 +364,9 @@ class FlappyBirdGame {
         this.lastPipeSpawn = 0;
         
         // 重置难度
-        this.currentPipeGap = PIPE_GAP_INITIAL;
-        this.currentPipeSpawnInterval = PIPE_SPAWN_INTERVAL_INITIAL;
-        this.currentPipeSpeed = PIPE_SPEED_INITIAL;
+        this.currentPipeGap = this.PIPE_GAP_INITIAL;
+        this.currentPipeSpawnInterval = this.PIPE_SPAWN_INTERVAL_INITIAL;
+        this.currentPipeSpeed = this.PIPE_SPEED_INITIAL;
         
         // 重置排行榜检查点状态
         this.leaderboardUpdated = false;
@@ -432,7 +383,7 @@ class FlappyBirdGame {
     
     // 小鸟扇动翅膀
     flapBird() {
-        this.bird.velocity = FLAP_POWER;
+        this.bird.velocity = this.FLAP_POWER;
         this.bird.rotation = -20; // 向上旋转
     }
     
@@ -441,7 +392,7 @@ class FlappyBirdGame {
         if (this.gameState !== GAME_STATE.PLAYING) return;
         
         // 使用固定重力值
-        this.bird.velocity += GRAVITY;
+        this.bird.velocity += this.GRAVITY;
         this.bird.y += this.bird.velocity;
         
         // 旋转小鸟（根据速度）
@@ -452,8 +403,8 @@ class FlappyBirdGame {
         }
         
         // 检查地面碰撞
-        if (this.bird.y + this.bird.height > this.canvas.height - GROUND_HEIGHT) {
-            this.bird.y = this.canvas.height - GROUND_HEIGHT - this.bird.height;
+        if (this.bird.y + this.bird.height > this.canvas.height - this.GROUND_HEIGHT) {
+            this.bird.y = this.canvas.height - this.GROUND_HEIGHT - this.bird.height;
             this.gameOver();
         }
         
@@ -481,7 +432,7 @@ class FlappyBirdGame {
             }
             
             // 计分 - 只对上管道计分，确保每对管道只加1分
-            if (!pipe.passed && pipe.x + PIPE_WIDTH < this.bird.x && pipe.isTop) {
+            if (!pipe.passed && pipe.x + this.PIPE_WIDTH < this.bird.x && pipe.isTop) {
                 pipe.passed = true;
                 // 同时标记对应的下管道为已通过
                 if (i + 1 < this.pipes.length) {
@@ -498,12 +449,12 @@ class FlappyBirdGame {
                 console.log(`通过管道对数: ${this.pipesPassedCount}, 当前分数: ${this.score}`);
                 
                 // 每SCORE_DIFFICULTY_STEP分增加一次难度
-                if (this.score % SCORE_DIFFICULTY_STEP === 0) {
-                    console.log(`达到难度增加点！(每${SCORE_DIFFICULTY_STEP}分)`);
+                if (this.score % this.SCORE_DIFFICULTY_STEP === 0) {
+                    console.log(`达到难度增加点！(每${this.SCORE_DIFFICULTY_STEP}分)`);
                     this.increaseDifficulty();
                 }
                 
-                // 检查是否达到分数阈值且尚未更新过排行榜，如果是则更新排行榜（每局游戏只更新一次）
+                // 检查是否达到分数阈值且尚未更新过排行榜
                 if (this.score >= this.scoreThreshold && !this.leaderboardUpdated) {
                     this.leaderboardUpdated = true;
                     // 在后台更新排行榜数据，不阻塞游戏
@@ -520,7 +471,7 @@ class FlappyBirdGame {
         }
         
         // 移除离开屏幕的管道
-        this.pipes = this.pipes.filter(pipe => pipe.x + PIPE_WIDTH > 0);
+        this.pipes = this.pipes.filter(pipe => pipe.x + this.PIPE_WIDTH > 0);
         
         // 定期显示当前难度参数（与难度增加无关，仅用于信息显示）
         if (this.score > 0 && this.score % 5 === 0 && !this.scoreDisplayed) {
@@ -531,24 +482,25 @@ class FlappyBirdGame {
             
             // 计算高度变化范围
             const currentHeightVariation = this.calculateParameterValue(
-                HEIGHT_VARIATION_INITIAL, 
-                HEIGHT_VARIATION_MEDIUM, 
-                HEIGHT_VARIATION_FINAL, 
+                this.HEIGHT_VARIATION_INITIAL, 
+                this.HEIGHT_VARIATION_MEDIUM, 
+                this.HEIGHT_VARIATION_FINAL, 
                 difficultyInfo
             );
             
             console.log(`--------- 当前状态 (得分: ${this.score}) ---------`);
             console.log(`难度阶段: ${
                 difficultyInfo.stage === 0 ? 
-                    `1-初始到中等过渡(0-${SCORE_MEDIUM_DIFFICULTY}分, 进度:${(difficultyInfo.progress * 100).toFixed(1)}%)` : 
+                    `1-初始到中等过渡(0-${this.SCORE_MEDIUM_DIFFICULTY}分, 进度:${(difficultyInfo.progress * 100).toFixed(1)}%)` : 
                 difficultyInfo.stage === 1 ? 
-                    `2-中等到最终过渡(${SCORE_MEDIUM_DIFFICULTY}-${SCORE_HARD_DIFFICULTY}分, 进度:${(difficultyInfo.progress * 100).toFixed(1)}%)` : 
-                    `3-最终难度(${SCORE_HARD_DIFFICULTY}分以上)`
+                    `2-中等到最终过渡(${this.SCORE_MEDIUM_DIFFICULTY}-${this.SCORE_HARD_DIFFICULTY}分, 进度:${(difficultyInfo.progress * 100).toFixed(1)}%)` : 
+                    `3-最终难度(${this.SCORE_HARD_DIFFICULTY}分以上)`
             }`);
             console.log(`管道间隙: ${this.currentPipeGap.toFixed(1)}像素`);
             console.log(`管道速度: ${this.currentPipeSpeed.toFixed(1)}`);
             console.log(`管道生成间隔: ${this.currentPipeSpawnInterval.toFixed(0)}毫秒`);
             console.log(`高度变化范围: ±${currentHeightVariation.toFixed(0)}像素`);
+            console.log(`游戏版本: ${this.gameVersion}`);
             console.log(`-----------------------------------------`);
         } else if (this.score % 5 !== 0) {
             this.scoreDisplayed = false;
@@ -560,14 +512,14 @@ class FlappyBirdGame {
         // 基于得分的三阶段难度系统，返回0-1之间的两个值：阶段和阶段内进度
         let stage, progress;
         
-        if (this.score < SCORE_MEDIUM_DIFFICULTY) {
+        if (this.score < this.SCORE_MEDIUM_DIFFICULTY) {
             // 第一阶段：初始难度到中等难度过渡 (0-15分)
             stage = 0; // 第一阶段
-            progress = this.score / SCORE_MEDIUM_DIFFICULTY; // 0-1之间的进度
-        } else if (this.score < SCORE_HARD_DIFFICULTY) {
+            progress = this.score / this.SCORE_MEDIUM_DIFFICULTY; // 0-1之间的进度
+        } else if (this.score < this.SCORE_HARD_DIFFICULTY) {
             // 第二阶段：中等难度到最终难度过渡 (15-50分)
             stage = 1; // 第二阶段
-            progress = (this.score - SCORE_MEDIUM_DIFFICULTY) / (SCORE_HARD_DIFFICULTY - SCORE_MEDIUM_DIFFICULTY); // 0-1之间的进度
+            progress = (this.score - this.SCORE_MEDIUM_DIFFICULTY) / (this.SCORE_HARD_DIFFICULTY - this.SCORE_MEDIUM_DIFFICULTY); // 0-1之间的进度
         } else {
             // 第三阶段：保持最终难度 (50分以上)
             stage = 2; // 第三阶段
@@ -600,33 +552,33 @@ class FlappyBirdGame {
         
         // 使用独立的参数计算管道间隙
         this.currentPipeGap = this.calculateParameterValue(
-            PIPE_GAP_INITIAL, 
-            PIPE_GAP_MEDIUM, 
-            PIPE_GAP_FINAL, 
+            this.PIPE_GAP_INITIAL, 
+            this.PIPE_GAP_MEDIUM, 
+            this.PIPE_GAP_FINAL, 
             difficultyInfo
         );
         
         // 使用独立的参数计算管道生成间隔
         this.currentPipeSpawnInterval = this.calculateParameterValue(
-            PIPE_SPAWN_INTERVAL_INITIAL, 
-            PIPE_SPAWN_INTERVAL_MEDIUM, 
-            PIPE_SPAWN_INTERVAL_FINAL, 
+            this.PIPE_SPAWN_INTERVAL_INITIAL, 
+            this.PIPE_SPAWN_INTERVAL_MEDIUM, 
+            this.PIPE_SPAWN_INTERVAL_FINAL, 
             difficultyInfo
         );
         
         // 使用独立的参数计算管道速度
         this.currentPipeSpeed = this.calculateParameterValue(
-            PIPE_SPEED_INITIAL, 
-            PIPE_SPEED_MEDIUM, 
-            PIPE_SPEED_FINAL, 
+            this.PIPE_SPEED_INITIAL, 
+            this.PIPE_SPEED_MEDIUM, 
+            this.PIPE_SPEED_FINAL, 
             difficultyInfo
         );
         
         // 使用独立的参数计算高度变化范围
         const currentHeightVariation = this.calculateParameterValue(
-            HEIGHT_VARIATION_INITIAL, 
-            HEIGHT_VARIATION_MEDIUM, 
-            HEIGHT_VARIATION_FINAL, 
+            this.HEIGHT_VARIATION_INITIAL, 
+            this.HEIGHT_VARIATION_MEDIUM, 
+            this.HEIGHT_VARIATION_FINAL, 
             difficultyInfo
         );
         
@@ -635,29 +587,39 @@ class FlappyBirdGame {
         console.log(`当前分数: ${this.score}`);
         console.log(`难度阶段: ${
             difficultyInfo.stage === 0 ? 
-                `1-初始到中等过渡(0-${SCORE_MEDIUM_DIFFICULTY}分, 进度:${(difficultyInfo.progress * 100).toFixed(1)}%)` : 
+                `1-初始到中等过渡(0-${this.SCORE_MEDIUM_DIFFICULTY}分, 进度:${(difficultyInfo.progress * 100).toFixed(1)}%)` : 
             difficultyInfo.stage === 1 ? 
-                `2-中等到最终过渡(${SCORE_MEDIUM_DIFFICULTY}-${SCORE_HARD_DIFFICULTY}分, 进度:${(difficultyInfo.progress * 100).toFixed(1)}%)` : 
-                `3-最终难度(${SCORE_HARD_DIFFICULTY}分以上)`
+                `2-中等到最终过渡(${this.SCORE_MEDIUM_DIFFICULTY}-${this.SCORE_HARD_DIFFICULTY}分, 进度:${(difficultyInfo.progress * 100).toFixed(1)}%)` : 
+                `3-最终难度(${this.SCORE_HARD_DIFFICULTY}分以上)`
         }`);
         console.log(`管道间隙: ${this.currentPipeGap.toFixed(1)}像素`);
         console.log(`管道速度: ${this.currentPipeSpeed.toFixed(1)}`);
         console.log(`管道生成间隔: ${this.currentPipeSpawnInterval.toFixed(0)}毫秒`);
         console.log(`高度变化范围: ±${currentHeightVariation.toFixed(0)}像素`);
+        console.log(`游戏版本: ${this.gameVersion}`);
         console.log(`--------------------------`);
     }
     
     // 生成管道
     spawnPipe() {
+        // 确保必要的属性存在
+        if (!this.PIPE_WIDTH) this.PIPE_WIDTH = 80;
+        if (!this.GROUND_HEIGHT) this.GROUND_HEIGHT = 50;
+        
         // 计算当前难度信息
         const difficultyInfo = this.calculateDifficultyFactor();
         
         // 根据难度调整间隙位置的随机范围
         const minGapPos = 100; // 间隙最小高度位置
-        const maxGapPos = this.canvas.height - GROUND_HEIGHT - this.currentPipeGap - 100; // 间隙最大高度位置
+        const maxGapPos = this.canvas.height - this.GROUND_HEIGHT - this.currentPipeGap - 100; // 间隙最大高度位置
         
         // 根据上一个管道的位置来限制新管道的位置范围（确保高度变化适中）
         let newGapPosition;
+        
+        // 安全检查 - 确保高度变化参数有默认值
+        if (!this.HEIGHT_VARIATION_INITIAL) this.HEIGHT_VARIATION_INITIAL = 200;
+        if (!this.HEIGHT_VARIATION_MEDIUM) this.HEIGHT_VARIATION_MEDIUM = 400;
+        if (!this.HEIGHT_VARIATION_FINAL) this.HEIGHT_VARIATION_FINAL = 600;
         
         if (this.pipes.length >= 2) {
             // 获取最后一对管道的上管道高度
@@ -665,9 +627,9 @@ class FlappyBirdGame {
             
             // 计算允许的高度变化范围 - 使用独立的参数
             const heightVariation = this.calculateParameterValue(
-                HEIGHT_VARIATION_INITIAL, 
-                HEIGHT_VARIATION_MEDIUM, 
-                HEIGHT_VARIATION_FINAL, 
+                this.HEIGHT_VARIATION_INITIAL, 
+                this.HEIGHT_VARIATION_MEDIUM, 
+                this.HEIGHT_VARIATION_FINAL, 
                 difficultyInfo
             );
             
@@ -686,7 +648,7 @@ class FlappyBirdGame {
         this.pipes.push({
             x: this.canvas.width,
             y: 0,
-            width: PIPE_WIDTH,
+            width: this.PIPE_WIDTH,
             height: newGapPosition,
             passed: false,
             isTop: true
@@ -696,8 +658,8 @@ class FlappyBirdGame {
         this.pipes.push({
             x: this.canvas.width,
             y: newGapPosition + this.currentPipeGap,
-            width: PIPE_WIDTH,
-            height: this.canvas.height - (newGapPosition + this.currentPipeGap) - GROUND_HEIGHT,
+            width: this.PIPE_WIDTH,
+            height: this.canvas.height - (newGapPosition + this.currentPipeGap) - this.GROUND_HEIGHT,
             passed: false,
             isTop: false
         });
@@ -723,6 +685,21 @@ class FlappyBirdGame {
     
     // 渲染游戏
     render() {
+        // 确保鸟和相关配置已初始化
+        if (!this.bird || !this.birdColor) {
+            // 如果缺少关键对象，记录错误并尝试重新初始化
+            console.error('渲染错误：缺少关键游戏对象');
+            
+            // 如果配置已加载但游戏对象未初始化，尝试初始化
+            if (this.isConfigLoaded && !this.bird) {
+                console.log('尝试重新初始化游戏元素');
+                this.initGameAfterConfigLoaded();
+                if (!this.bird) return; // 如果仍然失败，放弃本次渲染
+            } else {
+                return; // 放弃本次渲染
+            }
+        }
+        
         // 清除画布
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
@@ -760,11 +737,11 @@ class FlappyBirdGame {
         
         // 绘制地面
         this.ctx.fillStyle = '#8B4513'; // 棕色
-        this.ctx.fillRect(0, this.canvas.height - GROUND_HEIGHT, this.canvas.width, GROUND_HEIGHT);
+        this.ctx.fillRect(0, this.canvas.height - this.GROUND_HEIGHT, this.canvas.width, this.GROUND_HEIGHT);
         
         // 绘制草地
         this.ctx.fillStyle = '#32CD32'; // 绿色
-        this.ctx.fillRect(0, this.canvas.height - GROUND_HEIGHT, this.canvas.width, 15);
+        this.ctx.fillRect(0, this.canvas.height - this.GROUND_HEIGHT, this.canvas.width, 15);
         
         // 绘制小鸟
         this.ctx.save();
@@ -859,8 +836,8 @@ class FlappyBirdGame {
         this.ctx.beginPath();
         this.ctx.arc(x, y, size, 0, Math.PI * 2);
         this.ctx.arc(x + size * 0.5, y - size * 0.4, size * 0.8, 0, Math.PI * 2);
-        this.ctx.arc(x + size, y, size * 0.7, 0, Math.PI * 2);
-        this.ctx.arc(x + size * 0.5, y + size * 0.4, size * 0.6, 0, Math.PI * 2);
+        this.ctx.arc(x + size * 1.0, y, size * 0.9, 0, Math.PI * 2);
+        this.ctx.arc(x + size * 0.5, y + size * 0.4, size * 0.8, 0, Math.PI * 2);
         this.ctx.fill();
     }
     
@@ -978,6 +955,221 @@ class FlappyBirdGame {
             submitButton.disabled = false;
             submitButton.textContent = '提交分数';
         }
+    }
+    
+    // 初始化默认配置（用作回退）
+    initDefaultConfig() {
+        // 重力与跳跃参数
+        this.GRAVITY = 0.4;
+        this.FLAP_POWER = -9;
+        
+        // 初始难度参数 (0-15分)
+        this.PIPE_SPEED_INITIAL = 2.5;
+        this.PIPE_SPAWN_INTERVAL_INITIAL = 2000;
+        this.PIPE_GAP_INITIAL = 220;
+        this.HEIGHT_VARIATION_INITIAL = 200;
+        
+        // 中等难度参数 (15-100分)
+        this.PIPE_SPEED_MEDIUM = 3.0;
+        this.PIPE_SPAWN_INTERVAL_MEDIUM = 1600;
+        this.PIPE_GAP_MEDIUM = 180;
+        this.HEIGHT_VARIATION_MEDIUM = 400;
+        
+        // 最终难度参数 (100分以上)
+        this.PIPE_SPEED_FINAL = 3.0;
+        this.PIPE_SPAWN_INTERVAL_FINAL = 1400;
+        this.PIPE_GAP_FINAL = 120;
+        this.HEIGHT_VARIATION_FINAL = 600;
+        
+        // 难度控制分数阈值
+        this.SCORE_MEDIUM_DIFFICULTY = 15;
+        this.SCORE_HARD_DIFFICULTY = 100;
+        this.SCORE_DIFFICULTY_STEP = 5;
+        
+        // 其他游戏尺寸参数
+        this.PIPE_WIDTH = 80;
+        this.BIRD_WIDTH = 40;
+        this.BIRD_HEIGHT = 30;
+        this.GROUND_HEIGHT = 50;
+    }
+    
+    // 从服务器加载游戏配置
+    async loadGameConfig() {
+        try {
+            // 显示加载状态
+            this.gameState = GAME_STATE.LOADING;
+            if (this.loadingScreen) {
+                this.loadingScreen.style.display = 'flex';
+            }
+            
+            // 获取服务器配置
+            const response = await fetch(`/api/game-config?v=${Date.now()}`);
+            if (!response.ok) {
+                throw new Error('无法加载游戏配置');
+            }
+            
+            const config = await response.json();
+            
+            // 更新游戏配置
+            this.updateGameConfig(config);
+            
+            // 标记配置已加载
+            this.isConfigLoaded = true;
+            this.configLastChecked = Date.now();
+            
+            // 初始化游戏（仅在第一次加载时）
+            if (this.gameState === GAME_STATE.LOADING) {
+                this.initGameAfterConfigLoaded();
+            }
+            
+            console.log(`游戏配置已加载 - 版本: ${config.version}`);
+            
+            // 隐藏加载界面，显示开始界面
+            if (this.loadingScreen) {
+                this.loadingScreen.style.display = 'none';
+            }
+            
+            if (this.gameState === GAME_STATE.LOADING) {
+                this.gameState = GAME_STATE.MENU;
+                this.startScreen.style.display = 'flex';
+            }
+            
+            // 如果已经在游戏中，显示更新通知
+            if (this.gameState === GAME_STATE.PLAYING && this.gameVersion !== config.version) {
+                this.showUpdateNotification();
+            }
+            
+            return true;
+        } catch (error) {
+            console.error('加载游戏配置失败:', error);
+            
+            // 使用默认配置
+            console.log('使用默认配置继续游戏');
+            // 确保无论如何都初始化游戏
+            this.initGameAfterConfigLoaded();
+            
+            if (this.loadingScreen) {
+                this.loadingScreen.style.display = 'none';
+            }
+            
+            this.gameState = GAME_STATE.MENU;
+            this.startScreen.style.display = 'flex';
+            
+            return false;
+        }
+    }
+    
+    // 更新游戏配置
+    updateGameConfig(config) {
+        // 保存版本信息
+        this.gameVersion = config.version;
+        
+        // 更新所有配置参数
+        for (const key in config) {
+            if (key !== 'version' && key !== 'lastUpdated') {
+                this[key] = config[key];
+            }
+        }
+    }
+    
+    // 启动配置检查定时器
+    startConfigCheckTimer() {
+        setInterval(() => {
+            // 检查是否需要更新配置
+            if (Date.now() - this.configLastChecked > this.configCheckInterval) {
+                this.checkConfigUpdate();
+            }
+        }, 10000); // 每10秒检查一次定时器状态
+    }
+    
+    // 检查配置更新
+    async checkConfigUpdate() {
+        // 避免频繁检查
+        if (Date.now() - this.configLastChecked < this.configCheckInterval) {
+            return;
+        }
+        
+        this.configLastChecked = Date.now();
+        
+        try {
+            const response = await fetch(`/api/game-config?currentVersion=${this.gameVersion}&t=${Date.now()}`);
+            if (!response.ok) return;
+            
+            const config = await response.json();
+            
+            // 检查版本是否有变化
+            if (config.version !== this.gameVersion) {
+                console.log(`发现新游戏配置 - 当前: ${this.gameVersion}, 新版本: ${config.version}`);
+                
+                // 更新配置
+                this.updateGameConfig(config);
+                
+                // 显示更新通知
+                this.showUpdateNotification();
+            }
+        } catch (error) {
+            console.error('检查配置更新失败:', error);
+        }
+    }
+    
+    // 显示更新通知
+    showUpdateNotification() {
+        // 在控制台显示日志
+        console.log('游戏配置已更新，下一局游戏将使用新配置');
+        
+        // 显示界面通知
+        const notification = document.getElementById('update-notification');
+        if (notification) {
+            notification.style.display = 'flex';
+            
+            // 5秒后自动隐藏
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 5000);
+        }
+    }
+    
+    // 配置加载后初始化游戏
+    initGameAfterConfigLoaded() {
+        console.log('初始化游戏元素');
+        // 游戏元素
+        this.bird = {
+            x: this.canvas.width / 3,
+            y: this.canvas.height / 2,
+            width: this.BIRD_WIDTH || 40,  // 使用默认值防止undefined
+            height: this.BIRD_HEIGHT || 30,
+            velocity: 0,
+            rotation: 0
+        };
+        
+        this.pipes = [];
+        this.score = 0;
+        this.highScore = localStorage.getItem('flappyBirdHighScore') || 0;
+        // 记录游戏开始时的初始最高分，用于判断是否打破纪录
+        this.initialHighScore = this.highScore;
+        
+        // 难度控制
+        this.pipesPassedCount = 0;
+        this.currentPipeGap = this.PIPE_GAP_INITIAL || 220;
+        this.currentPipeSpawnInterval = this.PIPE_SPAWN_INTERVAL_INITIAL || 2000;
+        this.currentPipeSpeed = this.PIPE_SPEED_INITIAL || 2.5;
+        
+        // 游戏结束时间控制
+        this.gameJustEnded = false;
+        this.canRestartAfterGameOver = true;
+        
+        // 排行榜数据
+        this.leaderboardData = [];
+        this.scoreThreshold = 2; // 更新排行榜的分数阈值
+        this.leaderboardUpdated = false; // 跟踪本局游戏是否已更新过排行榜
+        this.scoreSubmitted = false; // 跟踪分数是否已被提交
+        
+        // 随机生成颜色
+        this.birdColor = this.getRandomColor();
+        this.pipeColors = this.generatePipeColors();
+        
+        // 根据设备类型显示不同的控制提示
+        this.updateControlsDisplay();
     }
 }
 
