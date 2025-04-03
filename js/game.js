@@ -473,42 +473,46 @@ class FlappyBirdGame {
     
     // 游戏结束
     gameOver() {
-        // 已结束，防止重复调用
-        if (this.gameState === GAME_STATE.GAME_OVER) return;
-        
-        // 设置游戏状态
         this.gameState = GAME_STATE.GAME_OVER;
+        this.gameOverScreen.style.display = 'flex';
+        this.finalScore.textContent = this.score;
         
-        // 显示游戏结束界面
-        if (this.gameOverScreen) {
-            this.gameOverScreen.style.display = 'flex';
+        // 获取并显示当前模式的最高分
+        const currentHighScore = this.getCurrentModeHighScore();
+        this.highScoreDisplay.textContent = currentHighScore;
+        
+        // 显示当前游戏模式和日期
+        const modeDisplay = document.getElementById('game-mode-display');
+        const dateDisplay = document.getElementById('challenge-date-display');
+        
+        if (modeDisplay) {
+            modeDisplay.textContent = this.gameMode === GAME_MODE.ENDLESS ? '无尽模式' : '每日挑战';
         }
         
-        // 更新分数显示
-        if (this.finalScoreElement) {
-            this.finalScoreElement.textContent = this.score;
-        }
-        
-        // 检查是否是新的最高分
-        if (this.score > this.initialHighScore) {
-            // 显示新纪录消息
-            const newHighScoreElement = document.getElementById('new-high-score');
-            if (newHighScoreElement) {
-                newHighScoreElement.style.display = 'block';
+        // 如果是每日挑战模式，显示日期
+        if (dateDisplay) {
+            if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
+                dateDisplay.textContent = this.currentChallengeDate;
+                dateDisplay.parentElement.style.display = 'block';
+            } else {
+                dateDisplay.parentElement.style.display = 'none';
             }
-            
-            // 更新本地存储中的最高分
-            localStorage.setItem('flappyBirdHighScore', this.score);
         }
         
-        // 获取重新开始按钮容器
+        // 默认隐藏名字输入框
+        document.getElementById('name-input-container').style.display = 'none';
+        
+        // 检查玩家分数是否满足条件
+        this.checkIfScoreQualifies();
+        
+        // 显示当前模式的排行榜数据
+        this.displayLeaderboard(this.getLeaderboardForCurrentMode());
+        
+        // 确保按钮容器可见但内容不可见（保留布局空间）
         const buttonContainer = document.querySelector('.restart-button-container');
         if (buttonContainer) {
-            // 按钮保持占位但不可见且不可交互
-            buttonContainer.style.opacity = '0';
-            buttonContainer.style.pointerEvents = 'none';
-            
-            // 确保按钮容器是flex布局，这样它始终占据空间
+            buttonContainer.style.visibility = 'hidden';
+            // 确保按钮容器已经显示（防止初次加载时没有正确显示）
             buttonContainer.style.display = 'flex';
         }
         
@@ -516,19 +520,22 @@ class FlappyBirdGame {
         this.gameJustEnded = true;
         this.canRestartAfterGameOver = false;
         
-        // 1秒后使按钮可见并允许重新开始游戏
+        // 1秒后显示按钮并允许重新开始游戏
         setTimeout(() => {
-            // 显示按钮
+            // 显示按钮（使用visibility而不是display）
             if (buttonContainer) {
-                buttonContainer.style.opacity = '1';
-                buttonContainer.style.pointerEvents = 'auto';
+                buttonContainer.style.visibility = 'visible';
                 
-                // 在移动设备上，检查是否需要特殊处理
+                // 移动设备上，确保"再玩一次"按钮可见
                 if (this.isMobile) {
-                    // 调整移动设备上的按钮样式
-                    const restartBtn = document.getElementById('restart-button');
-                    if (restartBtn) {
-                        restartBtn.classList.add('mobile-button');
+                    // 滚动到底部确保按钮可见
+                    const gameOverScreen = document.getElementById('game-over-screen');
+                    const restartButton = document.getElementById('restart-button');
+                    
+                    // 如果内容过长，确保按钮可见
+                    if (gameOverScreen.scrollHeight > gameOverScreen.clientHeight) {
+                        // 将按钮放到可视范围内
+                        restartButton.scrollIntoView({ behavior: 'smooth', block: 'end' });
                     }
                 }
             }
@@ -536,18 +543,6 @@ class FlappyBirdGame {
             this.canRestartAfterGameOver = true;
             this.gameJustEnded = false;
         }, 1000);
-        
-        // 在排行榜中显示分数
-        if (this.score >= this.scoreThreshold && !this.leaderboardUpdated) {
-            // 更新排行榜UI
-            this.updateLeaderboardAndShowUI();
-        }
-        
-        // 在结束界面显示最高分
-        const highScoreElement = document.getElementById('high-score-value');
-        if (highScoreElement) {
-            highScoreElement.textContent = Math.max(this.initialHighScore, this.score);
-        }
     }
     
     // 检查分数是否有资格提交
