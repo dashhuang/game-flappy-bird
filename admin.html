@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>排行榜管理</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            background-color: #f5f5f5;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #c0392b;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        #loginScreen {
+            text-align: center;
+        }
+        input {
+            padding: 8px;
+            margin: 10px 0;
+            width: 100%;
+            max-width: 300px;
+        }
+        #adminPanel {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>排行榜管理</h1>
+        
+        <div id="loginScreen">
+            <h2>管理员登录</h2>
+            <input type="password" id="adminPassword" placeholder="请输入管理员密码">
+            <button id="loginButton">登录</button>
+            <div id="loginResult" class="result" style="display: none;"></div>
+        </div>
+        
+        <div id="adminPanel">
+            <div>
+                <h2>清空排行榜</h2>
+                <p>警告：此操作将删除所有排行榜数据，且不可恢复！</p>
+                <button id="clearButton">清空排行榜</button>
+            </div>
+            <div id="result" class="result" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        // 简单的密码验证
+        document.getElementById('loginButton').addEventListener('click', async function() {
+            const password = document.getElementById('adminPassword').value;
+            
+            try {
+                // 通过API验证密码
+                const response = await fetch('/api/verify-admin', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ password: password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    // 密码正确，显示管理面板
+                    document.getElementById('loginScreen').style.display = 'none';
+                    document.getElementById('adminPanel').style.display = 'block';
+                } else {
+                    // 密码错误，显示错误消息
+                    const loginResult = document.getElementById('loginResult');
+                    loginResult.style.display = 'block';
+                    loginResult.className = 'result error';
+                    loginResult.innerHTML = '<p>密码错误，请重试</p>';
+                    
+                    // 3秒后隐藏错误消息
+                    setTimeout(() => {
+                        loginResult.style.display = 'none';
+                    }, 3000);
+                }
+            } catch (error) {
+                const loginResult = document.getElementById('loginResult');
+                loginResult.style.display = 'block';
+                loginResult.className = 'result error';
+                loginResult.innerHTML = '<p>验证失败，请重试</p>';
+            }
+        });
+        
+        // 清空排行榜功能
+        document.getElementById('clearButton').addEventListener('click', async function() {
+            if (confirm('确定要清空排行榜吗？此操作不可撤销！')) {
+                try {
+                    const password = document.getElementById('adminPassword').value;
+                    const response = await fetch('/api/clear-leaderboard', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ password: password })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    const resultDiv = document.getElementById('result');
+                    resultDiv.style.display = 'block';
+                    
+                    if (response.ok) {
+                        resultDiv.className = 'result success';
+                        resultDiv.innerHTML = `<p>${data.message}</p>`;
+                    } else {
+                        resultDiv.className = 'result error';
+                        resultDiv.innerHTML = `<p>错误：${data.error || '操作失败'}</p>`;
+                    }
+                } catch (error) {
+                    const resultDiv = document.getElementById('result');
+                    resultDiv.style.display = 'block';
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = `<p>错误：${error.message || '连接服务器失败'}</p>`;
+                }
+            }
+        });
+    </script>
+</body>
+</html> 

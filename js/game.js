@@ -25,17 +25,17 @@ const PIPE_SPAWN_INTERVAL_INITIAL = 2000; // 初始管道生成间隔
 const PIPE_GAP_INITIAL = 220;          // 初始管道间隙
 const HEIGHT_VARIATION_INITIAL = 200;  // 初始高度变化幅度（像素）
 
-// 中等难度参数 (15-50分)
+// 中等难度参数 (15-100分)
 const PIPE_SPEED_MEDIUM = 3.0;           // 中等难度管道速度
-const PIPE_SPAWN_INTERVAL_MEDIUM = 1500; // 中等难度管道生成间隔
-const PIPE_GAP_MEDIUM = 160;             // 中等难度管道间隙
+const PIPE_SPAWN_INTERVAL_MEDIUM = 1600; // 中等难度管道生成间隔 - 更平滑的过渡
+const PIPE_GAP_MEDIUM = 180;             // 中等难度管道间隙 - 更友好的设计
 const HEIGHT_VARIATION_MEDIUM = 300;     // 中等难度高度变化幅度（像素）
 
-// 最终难度参数 (50分以上)
-const PIPE_SPEED_FINAL = 3.0;           // 最终管道速度
-const PIPE_SPAWN_INTERVAL_FINAL = 1100; // 最终管道生成间隔
-const PIPE_GAP_FINAL = 110;             // 最终管道间隙
-const HEIGHT_VARIATION_FINAL = 400;     // 最终高度变化幅度（像素）
+// 最终难度参数 (100分以上)
+const PIPE_SPEED_FINAL = 3.0;           // 最终管道速度 - 保持稳定挑战性
+const PIPE_SPAWN_INTERVAL_FINAL = 1400; // 最终管道生成间隔 - 平衡的难度
+const PIPE_GAP_FINAL = 140;             // 最终管道间隙 - 有挑战但不过于困难
+const HEIGHT_VARIATION_FINAL = 500;     // 最终高度变化幅度（像素）- 增加垂直变化挑战性
 
 // 难度控制分数阈值
 const SCORE_MEDIUM_DIFFICULTY = 15;  // 中等难度分数阈值
