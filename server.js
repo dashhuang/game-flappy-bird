@@ -58,11 +58,32 @@ app.get('/api/game-config', (req, res) => {
 
 // 模拟获取分数API
 app.get('/api/get-scores', (req, res) => {
+  // 获取北京时间的日期字符串
+  const getBeijingDate = () => {
+    const now = new Date();
+    const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+    const year = beijingTime.getUTCFullYear();
+    const month = String(beijingTime.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(beijingTime.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  
+  const today = getBeijingDate();
+  
   // 模拟排行榜数据 (只包含3、5、10分)
   const mockScores = [
+    // 无尽模式数据
     { name: "小十", score: "10", mode: "endless", timestamp: Date.now() - 1000 },
     { name: "小五", score: "5", mode: "endless", timestamp: Date.now() - 5000 },
     { name: "小三", score: "3", mode: "endless", timestamp: Date.now() - 7000 },
+    
+    // 每日挑战模式数据 - 添加日期字段，使用北京时间
+    { name: "达世", score: "26", mode: "challenge", date: today, timestamp: Date.now() - 2000 },
+    { name: "凯尔", score: "26", mode: "challenge", date: today, timestamp: Date.now() - 3000 },
+    { name: "XD", score: "27", mode: "challenge", date: today, timestamp: Date.now() - 4000 },
+    { name: "霍华德", score: "21", mode: "challenge", date: today, timestamp: Date.now() - 6000 },
+    { name: "tyc", score: "10", mode: "challenge", date: today, timestamp: Date.now() - 8000 },
+    { name: "3", score: "7", mode: "challenge", date: today, timestamp: Date.now() - 9000 }
   ];
   
   res.status(200).json(mockScores);

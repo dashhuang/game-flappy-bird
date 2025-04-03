@@ -774,9 +774,21 @@ class FlappyBirdGame {
         
         // 如果是每日挑战模式，还需要按日期筛选
         if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
-            filteredData = filteredData.filter(entry => 
-                entry.date === this.currentChallengeDate
-            );
+            filteredData = filteredData.filter(entry => {
+                // 添加调试日志
+                if (this.currentChallengeDate && entry.date !== this.currentChallengeDate) {
+                    console.log(`日期不匹配: 需要${this.currentChallengeDate}, 实际${entry.date || '未设置'}`);
+                }
+                return entry.date === this.currentChallengeDate;
+            });
+            
+            // 如果日期筛选后没有数据，可能是API中没有date字段，取消日期筛选
+            if (filteredData.length === 0) {
+                console.log(`警告: 每日挑战模式按日期筛选后没有数据，尝试使用所有挑战模式数据`);
+                filteredData = this.leaderboardData.filter(entry => 
+                    entry.mode === 'challenge'
+                );
+            }
         }
         
         return filteredData;
@@ -1634,80 +1646,76 @@ class FlappyBirdGame {
     }
     
     // 提交分数
-    async submitScore() {
+    submitScore() {
         const nameInput = document.getElementById('player-name');
-        const name = nameInput.value.trim();
-        
-        if (!name) {
-            alert('请输入你的名字');
-            return;
-        }
-        
         const submitButton = document.getElementById('submit-score-button');
-        if (submitButton.disabled) {
-            // 防止重复提交
+        
+        // 验证输入
+        if (!nameInput || !nameInput.value.trim()) {
+            alert('请输入您的名字');
             return;
         }
         
-        // 禁用按钮，防止重复点击
-        submitButton.disabled = true;
-        submitButton.textContent = '提交中...';
+        // 禁用按钮防止重复提交
+        if (submitButton) {
+            submitButton.disabled = true;
+            submitButton.textContent = '提交中...';
+        }
         
-        // 在超时后恢复按钮状态
-        const timeout = setTimeout(() => {
-            submitButton.disabled = false;
-            submitButton.textContent = '提交分数';
-            alert('提交超时，请重试');
-        }, 10000); // 10秒超时
+        // 准备提交数据
+        const scoreData = {
+            name: nameInput.value.trim(),
+            score: this.score.toString(),
+            mode: this.gameMode === GAME_MODE.ENDLESS ? 'endless' : 'challenge'
+        };
         
-        try {
-            const response = await fetch('/api/submit-score', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    name: name,
-                    score: this.score,
-                    mode: this.gameMode === GAME_MODE.ENDLESS ? 'endless' : 'challenge',
-                    date: this.gameMode === GAME_MODE.DAILY_CHALLENGE ? this.currentChallengeDate : undefined
-                })
-            });
+        // 如果是每日挑战模式，添加日期信息 (使用北京时间)
+        if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
+            scoreData.date = this.currentChallengeDate;
+        }
+        
+        // 发送请求
+        fetch('/api/submit-score', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(scoreData)
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('提交失败');
+            }
+            return response.json();
+        })
+        .then(data => {
+            // 标记为已提交
+            this.scoreSubmitted = true;
             
-            // 清除超时
-            clearTimeout(timeout);
+            // 更新按钮文本
+            if (submitButton) {
+                submitButton.textContent = '✓ 已提交';
+            }
             
-            if (response.ok) {
-                // 添加提交成功标记，防止再次提交
-                this.scoreSubmitted = true;
-                document.getElementById('name-input-container').style.display = 'none';
-                
-                // 重新获取并显示更新后的排行榜数据
-                const leaderboardResponse = await fetch('/api/get-scores');
-                if (leaderboardResponse.ok) {
-                    const scores = await leaderboardResponse.json();
-                    this.leaderboardData = scores;
-                    // 显示当前模式的排行榜
-                    this.displayLeaderboard(this.getLeaderboardForCurrentMode());
-                    // 更新墓碑数据
-                    this.processLeaderboardForTombstones();
-                }
-            } else {
-                alert('提交分数失败，请重试');
-                // 恢复按钮状态，允许重试
+            // 隐藏输入框
+            const nameInputContainer = document.getElementById('name-input-container');
+            if (nameInputContainer) {
+                nameInputContainer.style.display = 'none';
+            }
+            
+            // 重新加载排行榜
+            this.loadLeaderboardInBackground(true);
+        })
+        .catch(error => {
+            console.error('提交分数失败:', error);
+            alert('提交失败，请重试');
+            
+            // 重置按钮状态
+            if (submitButton) {
                 submitButton.disabled = false;
                 submitButton.textContent = '提交分数';
             }
-        } catch (error) {
-            // 清除超时
-            clearTimeout(timeout);
-            
-            console.error('提交分数错误:', error);
-            alert('连接服务器失败');
-            // 恢复按钮状态，允许重试
-            submitButton.disabled = false;
-            submitButton.textContent = '提交分数';
-        }
+        });
     }
     
     // 初始化默认配置（用作回退）
