@@ -1054,10 +1054,17 @@ class FlappyBirdGame {
         this.ctx.fillStyle = '#87CEEB';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // 绘制云朵（简单版本）
+        // 绘制云朵（根据屏幕宽度自动调整数量）
         this.ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-        for (let i = 0; i < 5; i++) {
-            const x = (this.canvas.width * i / 4 + (Date.now() / 10000 * this.canvas.width) % this.canvas.width) % this.canvas.width;
+        
+        // 根据屏幕宽度计算云朵数量，手机窄屏使用3朵
+        const screenWidth = this.canvas.width;
+        const cloudCount = screenWidth < 500 ? 3 : Math.min(Math.floor(screenWidth / 250) + 2, 7);
+        
+        for (let i = 0; i < cloudCount; i++) {
+            // 根据云朵数量均匀分布在屏幕上
+            const segmentWidth = this.canvas.width / (cloudCount - 0.5);
+            const x = (segmentWidth * i + (Date.now() / 10000 * this.canvas.width) % this.canvas.width) % this.canvas.width;
             const y = this.canvas.height * 0.2 + Math.sin(Date.now() / 1000 + i) * 20;
             const size = 30 + Math.sin(Date.now() / 1000 + i * 2) * 10;
             
