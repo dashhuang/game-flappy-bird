@@ -1592,6 +1592,11 @@ class FlappyBirdGame {
                 
                 if (this.gameState !== GAME_STATE.PLAYING || forceProcess) {
                     this.processLeaderboardForTombstones();
+                    
+                    // 添加：在游戏结束或强制处理时，显示排行榜数据
+                    if (this.gameState === GAME_STATE.GAME_OVER || forceProcess) {
+                        this.displayLeaderboard(filteredData);
+                    }
                 } else {
                     console.log("游戏进行中，延迟处理旗子数据以避免闪烁");
                 }
@@ -1599,6 +1604,11 @@ class FlappyBirdGame {
             .catch(error => {
                 console.error("加载排行榜失败:", error);
                 this.leaderboardData = [];
+                
+                // 添加：出错时也要更新排行榜显示（显示无数据状态）
+                if (this.gameState === GAME_STATE.GAME_OVER || forceProcess) {
+                    this.displayLeaderboard([]);
+                }
             });
     }
     
@@ -1704,6 +1714,12 @@ class FlappyBirdGame {
             const nameInputContainer = document.getElementById('name-input-container');
             if (nameInputContainer) {
                 nameInputContainer.style.display = 'none';
+            }
+            
+            // 在重新加载排行榜前显示加载中状态
+            const leaderboardList = document.getElementById('leaderboard-list');
+            if (leaderboardList) {
+                leaderboardList.innerHTML = '<div class="loading-spinner"></div><p>更新排行榜中...</p>';
             }
             
             // 重新加载排行榜

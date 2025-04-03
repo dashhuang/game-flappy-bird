@@ -304,6 +304,19 @@ button:active {
     font-weight: bold;
 }
 
+/* 排行榜加载中状态样式 */
+#leaderboard-list .loading-spinner {
+    margin: 20px auto;
+    width: 40px;
+    height: 40px;
+}
+
+#leaderboard-list p {
+    text-align: center;
+    margin: 10px auto;
+    color: #FFD700;
+}
+
 #player-name {
     padding: 10px;
     font-size: 16px;
