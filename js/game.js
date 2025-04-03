@@ -127,11 +127,10 @@ class FlappyBirdGame {
             }
         });
         
-        // 鼠标/触摸事件
-        this.canvas.addEventListener('click', () => {
+        // 鼠标按下事件 - 替换click事件
+        this.canvas.addEventListener('mousedown', () => {
             if (this.gameState === GAME_STATE.MENU) {
-                // 移除直接开始，改为等待用户选择模式
-                // this.startGame();
+                // 不做任何操作，让用户选择模式
             } else if (this.gameState === GAME_STATE.PLAYING) {
                 this.flapBird();
             } else if (this.gameState === GAME_STATE.GAME_OVER && this.canRestartAfterGameOver) {
@@ -142,6 +141,24 @@ class FlappyBirdGame {
                 this.startGame();
             }
         });
+        
+        // 触摸开始事件 - 为移动设备
+        this.canvas.addEventListener('touchstart', (e) => {
+            // 防止触摸事件同时触发鼠标事件
+            e.preventDefault();
+            
+            if (this.gameState === GAME_STATE.MENU) {
+                // 不做任何操作，让用户选择模式
+            } else if (this.gameState === GAME_STATE.PLAYING) {
+                this.flapBird();
+            } else if (this.gameState === GAME_STATE.GAME_OVER && this.canRestartAfterGameOver) {
+                this.resetGame();
+                this.startGame();
+            } else if (this.gameState === GAME_STATE.VICTORY) {
+                this.resetGame();
+                this.startGame();
+            }
+        }, { passive: false });
         
         // 无尽模式按钮
         document.getElementById('endless-mode-button').addEventListener('click', () => {
