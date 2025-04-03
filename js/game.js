@@ -758,49 +758,53 @@ class FlappyBirdGame {
                 return;
             }
             
-            // 检查是否通过管道
+            // 检查是否通过管道 - 只对上管道(isTop为true)加分，避免一组管道加2分
             if (!pipe.passed && pipe.x + this.PIPE_WIDTH < this.bird.x) {
                 pipe.passed = true;
-                this.score++;
-                this.updateScore();
-                this.pipesPassedCount++;
                 
-                // 每日挑战模式下的通关判断
-                if (this.gameMode === GAME_MODE.DAILY_CHALLENGE && this.pipeCount >= this.maxDailyChallengePipes && this.pipesPassedCount >= this.maxDailyChallengePipes) {
-                    this.showVictoryScreen();
-                    return;
-                }
-                
-                // 每日挑战模式下的难度调整
-                if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
-                    // 40分后达到最高难度
-                    const progressToMax = Math.min(1, this.score / 40);
+                // 只对上管道加分，确保每组管道只加1分
+                if (pipe.isTop) {
+                    this.score++;
+                    this.updateScore();
+                    this.pipesPassedCount++;
                     
-                    // 根据进度计算难度
-                    this.currentPipeGap = this.PIPE_GAP_MEDIUM - progressToMax * (this.PIPE_GAP_MEDIUM - this.PIPE_GAP_FINAL);
-                    this.currentPipeSpeed = this.PIPE_SPEED_MEDIUM + progressToMax * (this.PIPE_SPEED_FINAL - this.PIPE_SPEED_MEDIUM);
-                    this.currentPipeSpawnInterval = this.PIPE_SPAWN_INTERVAL_MEDIUM - progressToMax * (this.PIPE_SPAWN_INTERVAL_MEDIUM - this.PIPE_SPAWN_INTERVAL_FINAL);
-                } else {
-                    // 无尽模式下的难度调整
-                    // 每SCORE_DIFFICULTY_STEP分增加一次难度
-                    if (this.score % this.SCORE_DIFFICULTY_STEP === 0) {
-                        console.log(`达到难度增加点！(每${this.SCORE_DIFFICULTY_STEP}分)`);
-                        this.increaseDifficulty();
+                    // 每日挑战模式下的通关判断
+                    if (this.gameMode === GAME_MODE.DAILY_CHALLENGE && this.pipeCount >= this.maxDailyChallengePipes && this.pipesPassedCount >= this.maxDailyChallengePipes) {
+                        this.showVictoryScreen();
+                        return;
                     }
-                }
-                
-                // 检查是否达到分数阈值且尚未更新过排行榜
-                if (this.score >= this.scoreThreshold && !this.leaderboardUpdated) {
-                    this.leaderboardUpdated = true;
-                    // 在后台更新排行榜数据，不阻塞游戏
-                    console.log(`达到得分阈值: ${this.scoreThreshold}分，更新排行榜数据`);
-                    this.loadLeaderboardInBackground();
-                }
-                
-                // 更新最高分
-                if (this.score > this.highScore) {
-                    this.highScore = this.score;
-                    localStorage.setItem('flappyBirdHighScore', this.highScore);
+                    
+                    // 每日挑战模式下的难度调整
+                    if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
+                        // 40分后达到最高难度
+                        const progressToMax = Math.min(1, this.score / 40);
+                        
+                        // 根据进度计算难度
+                        this.currentPipeGap = this.PIPE_GAP_MEDIUM - progressToMax * (this.PIPE_GAP_MEDIUM - this.PIPE_GAP_FINAL);
+                        this.currentPipeSpeed = this.PIPE_SPEED_MEDIUM + progressToMax * (this.PIPE_SPEED_FINAL - this.PIPE_SPEED_MEDIUM);
+                        this.currentPipeSpawnInterval = this.PIPE_SPAWN_INTERVAL_MEDIUM - progressToMax * (this.PIPE_SPAWN_INTERVAL_MEDIUM - this.PIPE_SPAWN_INTERVAL_FINAL);
+                    } else {
+                        // 无尽模式下的难度调整
+                        // 每SCORE_DIFFICULTY_STEP分增加一次难度
+                        if (this.score % this.SCORE_DIFFICULTY_STEP === 0) {
+                            console.log(`达到难度增加点！(每${this.SCORE_DIFFICULTY_STEP}分)`);
+                            this.increaseDifficulty();
+                        }
+                    }
+                    
+                    // 检查是否达到分数阈值且尚未更新过排行榜
+                    if (this.score >= this.scoreThreshold && !this.leaderboardUpdated) {
+                        this.leaderboardUpdated = true;
+                        // 在后台更新排行榜数据，不阻塞游戏
+                        console.log(`达到得分阈值: ${this.scoreThreshold}分，更新排行榜数据`);
+                        this.loadLeaderboardInBackground();
+                    }
+                    
+                    // 更新最高分
+                    if (this.score > this.highScore) {
+                        this.highScore = this.score;
+                        localStorage.setItem('flappyBirdHighScore', this.highScore);
+                    }
                 }
             }
         }
