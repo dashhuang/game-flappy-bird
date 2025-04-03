@@ -15,6 +15,7 @@ body {
     overflow: hidden;
     margin: 0;
     padding: 0;
+    touch-action: manipulation; /* 防止iOS上的双击缩放 */
 }
 
 .game-container {
@@ -51,6 +52,9 @@ body {
     text-align: center;
     z-index: 10;
     padding: 20px;
+    overflow-y: auto; /* 允许屏幕内容滚动 */
+    -webkit-overflow-scrolling: touch; /* 提供iOS上的平滑滚动 */
+    box-sizing: border-box; /* 确保padding不会增加尺寸 */
 }
 
 #start-screen {
@@ -69,7 +73,8 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding-bottom: 20px; /* 减少底部填充 */
+    padding-bottom: 20px;
+    max-width: 600px; /* 限制最大宽度 */
 }
 
 .restart-button-container {
@@ -456,4 +461,115 @@ button:active {
     display: none;
     color: #FFC107;
     font-weight: bold;
+}
+
+/* 移动设备上的游戏结束屏幕优化 */
+@media (max-width: 480px) {
+    /* 确保游戏结束屏幕适合移动设备屏幕 */
+    #game-over-screen, #victory-screen {
+        padding: 10px 5px;
+        overflow-y: auto;
+        max-height: 100%;
+        justify-content: flex-start;
+    }
+    
+    /* 进一步减少内容之间的间距 */
+    .game-over-content, .victory-content {
+        padding: 5px;
+        margin-top: 10px;
+    }
+    
+    /* 解决按钮文字断行问题 */
+    .restart-button-container {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .restart-button-container button {
+        width: 70%;
+        white-space: nowrap; /* 防止按钮文字换行 */
+        padding: 15px 10px;
+        margin: 8px 0;
+    }
+    
+    /* 优化游戏结束界面上的文字大小 */
+    #game-over-screen h2, #victory-screen h2 {
+        font-size: 2rem;
+        margin-bottom: 10px;
+    }
+    
+    #game-over-screen p, #victory-screen p {
+        font-size: 1rem;
+        margin-bottom: 8px;
+    }
+    
+    /* 减少输入框容器和排行榜容器的内边距 */
+    #name-input-container, #leaderboard-container {
+        padding: 5px;
+        margin-top: 10px;
+    }
+    
+    /* 优化输入框样式 */
+    #player-name {
+        padding: 8px;
+        font-size: 14px;
+        margin-bottom: 5px;
+    }
+    
+    /* 优化提交按钮样式 */
+    #submit-score-button {
+        padding: 8px 15px;
+        font-size: 14px;
+        margin: 5px auto;
+    }
+    
+    /* 调整排行榜标题大小 */
+    #leaderboard-container h3 {
+        font-size: 1rem;
+        margin: 5px 0;
+    }
+    
+    /* 优化排行榜样式 */
+    #leaderboard-container {
+        max-height: 25vh;
+        padding: 5px;
+        margin-bottom: 10px;
+    }
+    
+    #leaderboard-list table {
+        font-size: 0.9rem;
+    }
+    
+    #leaderboard-list th, 
+    #leaderboard-list td {
+        padding: 5px 8px;
+    }
+}
+
+/* 特别小的屏幕优化 */
+@media (max-width: 320px) {
+    .restart-button-container button {
+        width: 90%;
+        font-size: 1rem;
+        padding: 10px 5px;
+    }
+    
+    #game-over-screen h2, #victory-screen h2 {
+        font-size: 1.6rem;
+    }
+    
+    #game-over-screen p, #victory-screen p {
+        font-size: 0.9rem;
+    }
+}
+
+/* 解决iOS Safari 100vh问题 */
+@supports (-webkit-touch-callout: none) {
+    .screen {
+        height: -webkit-fill-available;
+    }
+    
+    .game-container {
+        height: -webkit-fill-available;
+    }
 }
