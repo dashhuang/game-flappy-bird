@@ -47,6 +47,10 @@ class FlappyBirdGame {
         this.maxDailyChallengePipes = 50;
         this.pipeCount = 0;
         
+        // 分数存储 - 区分不同模式
+        this.endlessHighScore = localStorage.getItem('flappyBirdEndlessHighScore') || 0;
+        this.challengeHighScore = localStorage.getItem('flappyBirdChallengeHighScore') || 0;
+        
         // 初始化默认配置（用于回退）
         this.initDefaultConfig();
         
@@ -286,14 +290,34 @@ class FlappyBirdGame {
         document.getElementById('victory-screen').style.display = 'none';
         this.scoreDisplay.style.display = 'block';
         
-        // 记录游戏开始时的最高分
-        this.initialHighScore = this.highScore;
+        // 记录游戏开始时的最高分 - 基于当前模式
+        this.initialHighScore = this.getCurrentModeHighScore();
         
         // 根据游戏模式设置难度
         if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
             // 每日挑战从中等难度开始
             this.startDailyChallenge();
         }
+    }
+    
+    // 获取当前模式的最高分
+    getCurrentModeHighScore() {
+        return this.gameMode === GAME_MODE.ENDLESS ? this.endlessHighScore : this.challengeHighScore;
+    }
+    
+    // 更新当前模式的最高分
+    updateCurrentModeHighScore(score) {
+        if (score > this.getCurrentModeHighScore()) {
+            if (this.gameMode === GAME_MODE.ENDLESS) {
+                this.endlessHighScore = score;
+                localStorage.setItem('flappyBirdEndlessHighScore', score);
+            } else {
+                this.challengeHighScore = score;
+                localStorage.setItem('flappyBirdChallengeHighScore', score);
+            }
+            return true; // 表示更新了最高分
+        }
+        return false; // 表示没有更新最高分
     }
     
     // 设置每日挑战的初始状态
@@ -354,13 +378,23 @@ class FlappyBirdGame {
         this.gameState = GAME_STATE.VICTORY;
         document.getElementById('victory-screen').style.display = 'flex';
         document.getElementById('victory-score').textContent = this.score;
+        
+        // 显示当前游戏模式
+        const victoryModeDisplay = document.getElementById('victory-mode-display');
+        if (victoryModeDisplay) {
+            victoryModeDisplay.textContent = '每日挑战';
+        }
+        
+        // 获取并显示当前模式的最高分
+        const highScoreDisplay = document.getElementById('victory-high-score');
+        if (highScoreDisplay) {
+            highScoreDisplay.textContent = this.challengeHighScore;
+        }
+        
         this.gameOverScreen.style.display = 'none';
         
         // 更新最高分
-        if (this.score > this.highScore) {
-            this.highScore = this.score;
-            localStorage.setItem('flappyBirdHighScore', this.highScore);
-        }
+        this.updateCurrentModeHighScore(this.score);
     }
     
     // 游戏结束
@@ -368,18 +402,25 @@ class FlappyBirdGame {
         this.gameState = GAME_STATE.GAME_OVER;
         this.gameOverScreen.style.display = 'flex';
         this.finalScore.textContent = this.score;
-        this.highScoreDisplay.textContent = this.highScore;
+        
+        // 获取并显示当前模式的最高分
+        const currentHighScore = this.getCurrentModeHighScore();
+        this.highScoreDisplay.textContent = currentHighScore;
+        
+        // 显示当前游戏模式
+        const modeDisplay = document.getElementById('game-mode-display');
+        if (modeDisplay) {
+            modeDisplay.textContent = this.gameMode === GAME_MODE.ENDLESS ? '无尽模式' : '每日挑战';
+        }
         
         // 默认隐藏名字输入框
         document.getElementById('name-input-container').style.display = 'none';
         
-        // 检查玩家分数是否满足条件：
-        // 1. 超过了自己的最高分
-        // 2. 能够进入全球排行榜前20
+        // 检查玩家分数是否满足条件
         this.checkIfScoreQualifies();
         
-        // 显示排行榜数据
-        this.displayLeaderboard(this.leaderboardData);
+        // 显示当前模式的排行榜数据
+        this.displayLeaderboard(this.getLeaderboardForCurrentMode());
         
         // 移动设备上，确保"再玩一次"按钮可见
         if (this.isMobile) {
@@ -419,10 +460,13 @@ class FlappyBirdGame {
         // 首先检查是否严格超过了游戏开始时的最高分（而非当前最高分）
         const beatsPersonalBest = this.score > this.initialHighScore;
         
-        // 检查是否能进入全球排行榜前20
+        // 检查是否能进入当前模式的全球排行榜前20
         const canEnterTopTwenty = this.isTopTwentyScore(this.score);
         
-        console.log(`分数检查 - 当前: ${this.score}, 初始最高分: ${this.initialHighScore}, 当前最高分: ${this.highScore}, 超过最高分: ${beatsPersonalBest}, 能进前20: ${canEnterTopTwenty}`);
+        console.log(`分数检查 - 当前: ${this.score}, 初始最高分: ${this.initialHighScore}, 当前最高分: ${this.getCurrentModeHighScore()}, 超过最高分: ${beatsPersonalBest}, 能进前20: ${canEnterTopTwenty}`);
+        
+        // 更新当前模式的最高分
+        this.updateCurrentModeHighScore(this.score);
         
         // 显示或隐藏提交界面
         const nameInputContainer = document.getElementById('name-input-container');
@@ -441,23 +485,38 @@ class FlappyBirdGame {
         }
     }
     
+    // 获取当前模式的排行榜数据
+    getLeaderboardForCurrentMode() {
+        if (!this.leaderboardData || !Array.isArray(this.leaderboardData)) {
+            return [];
+        }
+        
+        // 根据当前模式筛选排行榜数据
+        return this.leaderboardData.filter(entry => 
+            entry.mode === (this.gameMode === GAME_MODE.ENDLESS ? 'endless' : 'challenge')
+        );
+    }
+    
     // 检查分数是否能进入前20名
     isTopTwentyScore(score) {
+        // 获取当前模式的排行榜数据
+        const modeLeaderboard = this.getLeaderboardForCurrentMode();
+        
         // 排行榜为空或没有数据的情况
-        if (!this.leaderboardData || !Array.isArray(this.leaderboardData) || this.leaderboardData.length === 0) {
+        if (!modeLeaderboard || modeLeaderboard.length === 0) {
             // 如果排行榜数据还没加载或为空，任何非零分数都可以提交
             return score > 0;
         }
         
         // 如果排行榜还没有20个记录，任何非零分数都可以进入
-        if (this.leaderboardData.length < 20) {
+        if (modeLeaderboard.length < 20) {
             return score > 0;
         }
         
         try {
             // 检查分数是否大于排行榜中最低的分数
             // 获取排行榜的最低分
-            const sortedScores = [...this.leaderboardData]
+            const sortedScores = [...modeLeaderboard]
                 .sort((a, b) => parseInt(b.score) - parseInt(a.score));
             
             // 安全地获取第20名的分数，防止undefined
@@ -509,7 +568,7 @@ class FlappyBirdGame {
         this.scoreSubmitted = false;
         
         // 记录当前的最高分
-        this.initialHighScore = this.highScore;
+        this.initialHighScore = this.getCurrentModeHighScore();
         
         // 随机生成新颜色
         this.birdColor = this.getRandomColor();
@@ -1041,6 +1100,12 @@ class FlappyBirdGame {
     displayLeaderboard(scores) {
         const leaderboardContainer = document.getElementById('leaderboard-container');
         const leaderboardList = document.getElementById('leaderboard-list');
+        const leaderboardMode = document.getElementById('leaderboard-mode');
+        
+        // 更新排行榜模式显示
+        if (leaderboardMode) {
+            leaderboardMode.textContent = this.gameMode === GAME_MODE.ENDLESS ? '无尽模式' : '每日挑战';
+        }
         
         leaderboardList.innerHTML = '';
         
@@ -1092,6 +1157,9 @@ class FlappyBirdGame {
         submitButton.disabled = true;
         submitButton.textContent = '提交中...';
         
+        // 获取当前游戏模式
+        const mode = this.gameMode === GAME_MODE.ENDLESS ? 'endless' : 'challenge';
+        
         try {
             const response = await fetch('/api/submit-score', {
                 method: 'POST',
@@ -1100,7 +1168,8 @@ class FlappyBirdGame {
                 },
                 body: JSON.stringify({
                     name: name,
-                    score: this.score
+                    score: this.score,
+                    mode: mode
                 })
             });
             
@@ -1114,7 +1183,8 @@ class FlappyBirdGame {
                 if (leaderboardResponse.ok) {
                     const scores = await leaderboardResponse.json();
                     this.leaderboardData = scores;
-                    this.displayLeaderboard(scores);
+                    // 显示当前模式的排行榜
+                    this.displayLeaderboard(this.getLeaderboardForCurrentMode());
                 }
             } else {
                 alert('提交分数失败，请重试');
@@ -1318,9 +1388,8 @@ class FlappyBirdGame {
         
         this.pipes = [];
         this.score = 0;
-        this.highScore = localStorage.getItem('flappyBirdHighScore') || 0;
-        // 记录游戏开始时的初始最高分，用于判断是否打破纪录
-        this.initialHighScore = this.highScore;
+        this.highScore = 0; // 不再使用
+        this.initialHighScore = 0; // 会在开始游戏时设置
         
         // 难度控制
         this.pipesPassedCount = 0;

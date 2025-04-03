@@ -35,6 +35,7 @@
         <div id="game-over-screen" class="screen">
             <div class="game-over-content">
                 <h2>游戏结束</h2>
+                <p>游戏模式: <span id="game-mode-display">无尽模式</span></p>
                 <p>你的分数: <span id="final-score">0</span></p>
                 <p>最高分: <span id="high-score">0</span></p>
                 
@@ -46,7 +47,7 @@
                 </div>
                 
                 <div id="leaderboard-container">
-                    <h3>全球排行榜</h3>
+                    <h3>全球排行榜 - <span id="leaderboard-mode">无尽模式</span></h3>
                     <div id="leaderboard-list"></div>
                 </div>
                 
@@ -67,8 +68,10 @@
         <div id="victory-screen" class="screen">
             <div class="victory-content">
                 <h2 class="victory-title">挑战成功！</h2>
+                <p>游戏模式: <span id="victory-mode-display">每日挑战</span></p>
                 <p>恭喜你完成了今日挑战！</p>
                 <p>总分: <span id="victory-score">0</span></p>
+                <p>最高分: <span id="victory-high-score">0</span></p>
                 <button id="victory-restart-button">再玩一次</button>
                 <button id="back-to-menu-button">返回主菜单</button>
             </div>
