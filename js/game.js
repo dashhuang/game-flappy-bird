@@ -858,19 +858,22 @@ class FlappyBirdGame {
             this.currentPipeGap = this.PIPE_GAP_MEDIUM;
             this.currentPipeSpawnInterval = this.PIPE_SPAWN_INTERVAL_MEDIUM;
             this.currentPipeSpeed = this.PIPE_SPEED_MEDIUM;
+            
+            // 重新加载每日挑战模式的排行榜数据
+            this.loadLeaderboardInBackground(true);
+        } else {
+            // 重置旗子的放置状态，使它们能在新游戏中再次生成
+            if (this.tombstones && this.tombstones.length > 0) {
+                this.tombstones.forEach(tombstone => {
+                    tombstone.placed = false;
+                });
+            }
         }
         
         // 重置排行榜检查点状态
         this.leaderboardUpdated = false;
         // 重置分数提交状态
         this.scoreSubmitted = false;
-        
-        // 重置旗子的放置状态，使它们能在新游戏中再次生成
-        if (this.tombstones && this.tombstones.length > 0) {
-            this.tombstones.forEach(tombstone => {
-                tombstone.placed = false;
-            });
-        }
         
         // 重置提交按钮状态 - 修复Bug
         const submitButton = document.getElementById('submit-score-button');
