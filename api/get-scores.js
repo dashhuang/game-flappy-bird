@@ -7,8 +7,8 @@ export default async function handler(req, res) {
       url: process.env.REDIS_URL
     }).connect();
     
-    // 获取前10名高分
-    const topScoreIds = await redis.zRange('scores', 0, 9, {
+    // 获取前20名高分（修改为20名）
+    const topScoreIds = await redis.zRange('scores', 0, 19, {
       REV: true // 降序排列
     });
     

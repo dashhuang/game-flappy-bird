@@ -297,7 +297,7 @@ class FlappyBirdGame {
         
         // 检查玩家分数是否满足条件：
         // 1. 超过了自己的最高分
-        // 2. 能够进入全球排行榜前10
+        // 2. 能够进入全球排行榜前20
         this.checkIfScoreQualifies();
         
         // 显示排行榜数据
@@ -335,38 +335,38 @@ class FlappyBirdGame {
         // 首先检查是否严格超过了游戏开始时的最高分（而非当前最高分）
         const beatsPersonalBest = this.score > this.initialHighScore;
         
-        // 检查是否能进入全球排行榜前10
-        const canEnterTopTen = this.isTopTenScore(this.score);
+        // 检查是否能进入全球排行榜前20
+        const canEnterTopTwenty = this.isTopTwentyScore(this.score);
         
-        console.log(`分数检查 - 当前: ${this.score}, 初始最高分: ${this.initialHighScore}, 当前最高分: ${this.highScore}, 超过最高分: ${beatsPersonalBest}, 能进前10: ${canEnterTopTen}`);
+        console.log(`分数检查 - 当前: ${this.score}, 初始最高分: ${this.initialHighScore}, 当前最高分: ${this.highScore}, 超过最高分: ${beatsPersonalBest}, 能进前20: ${canEnterTopTwenty}`);
         
         // 显示或隐藏提交界面
         const nameInputContainer = document.getElementById('name-input-container');
         
-        // 只有当两个条件都满足时才显示提交界面：1.严格打破最高分 2.能进入前10
-        if (beatsPersonalBest && canEnterTopTen) {
+        // 只有当两个条件都满足时才显示提交界面：1.严格打破最高分 2.能进入前20
+        if (beatsPersonalBest && canEnterTopTwenty) {
             nameInputContainer.style.display = 'block';
-            console.log('显示提交成绩界面：打破最高分并且能进入前10');
+            console.log('显示提交成绩界面：打破最高分并且能进入前20');
         } else {
             nameInputContainer.style.display = 'none';
             if (!beatsPersonalBest) {
                 console.log('不显示提交界面：未打破最高分');
-            } else if (!canEnterTopTen) {
-                console.log('不显示提交界面：无法进入前10');
+            } else if (!canEnterTopTwenty) {
+                console.log('不显示提交界面：无法进入前20');
             }
         }
     }
     
-    // 检查分数是否能进入前10
-    isTopTenScore(score) {
+    // 检查分数是否能进入前20名
+    isTopTwentyScore(score) {
         // 排行榜为空或没有数据的情况
         if (!this.leaderboardData || !Array.isArray(this.leaderboardData) || this.leaderboardData.length === 0) {
             // 如果排行榜数据还没加载或为空，任何非零分数都可以提交
             return score > 0;
         }
         
-        // 如果排行榜还没有10个记录，任何非零分数都可以进入
-        if (this.leaderboardData.length < 10) {
+        // 如果排行榜还没有20个记录，任何非零分数都可以进入
+        if (this.leaderboardData.length < 20) {
             return score > 0;
         }
         
@@ -376,9 +376,9 @@ class FlappyBirdGame {
             const sortedScores = [...this.leaderboardData]
                 .sort((a, b) => parseInt(b.score) - parseInt(a.score));
             
-            // 安全地获取第10名的分数，防止undefined
-            const lowestTopScore = sortedScores.length >= 10 ? 
-                parseInt(sortedScores[9].score) : 0;
+            // 安全地获取第20名的分数，防止undefined
+            const lowestTopScore = sortedScores.length >= 20 ? 
+                parseInt(sortedScores[19].score) : 0;
             
             return score > lowestTopScore;
         } catch (error) {

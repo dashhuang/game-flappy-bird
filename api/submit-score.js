@@ -41,15 +41,21 @@ export default async function handler(req, res) {
     if (sameNameIds.length === 0) {
       // 没有同名记录，创建新记录
       const newId = Date.now().toString();
+      const timestamp = Date.now();
       
       await redis.hSet(`score:${newId}`, {
         name,
         score: parseInt(score),
-        timestamp: Date.now()
+        timestamp
       });
       
+      // 计算排序分数：实际分数 * 10000000000（10位） + (10000000000 - 时间戳)
+      // 这样可以保证分数相同时，先提交的排在前面
+      // 时间戳从10000000000减去是为了让更早的时间戳得到更高的值
+      const sortScore = parseInt(score) * 10000000000 + (10000000000 - Math.floor(timestamp / 1000));
+      
       await redis.zAdd('scores', [{
-        score: parseInt(score),
+        score: sortScore,
         value: newId
       }]);
     } else {
@@ -57,15 +63,19 @@ export default async function handler(req, res) {
       if (parseInt(score) >= highestScore) {
         // 新分数是最高分，创建新记录
         const newId = Date.now().toString();
+        const timestamp = Date.now();
         
         await redis.hSet(`score:${newId}`, {
           name,
           score: parseInt(score),
-          timestamp: Date.now()
+          timestamp
         });
         
+        // 计算排序分数
+        const sortScore = parseInt(score) * 10000000000 + (10000000000 - Math.floor(timestamp / 1000));
+        
         await redis.zAdd('scores', [{
-          score: parseInt(score),
+          score: sortScore,
           value: newId
         }]);
         
