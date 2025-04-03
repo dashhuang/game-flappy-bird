@@ -524,7 +524,7 @@ class FlappyBirdGame {
                 buttonContainer.style.pointerEvents = 'auto';
                 
                 // 在移动设备上，检查是否需要特殊处理
-                if (this.isMobileDevice()) {
+                if (this.isMobile) {
                     // 调整移动设备上的按钮样式
                     const restartBtn = document.getElementById('restart-button');
                     if (restartBtn) {
