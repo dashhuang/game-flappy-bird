@@ -144,12 +144,27 @@ button:active {
 #score-display {
     position: absolute;
     top: 20px;
-    right: 20px;
-    font-size: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 42px;
     font-weight: bold;
     color: white;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
     z-index: 5;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+/* FPS计数器样式 */
+#fps-counter {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background-color: rgba(0, 0, 0, 0.5);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 3px;
+    font-size: 14px;
+    font-family: monospace;
+    z-index: 100;
 }
 
 .difficulty-text {
