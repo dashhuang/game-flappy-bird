@@ -4,6 +4,8 @@
 
 [在线试玩](https://flappybird.huang.co)
 
+![Flappy Bird 游戏预览](assets/flappy-preview.png)
+
 ## 游戏特性
 
 ### 核心功能
