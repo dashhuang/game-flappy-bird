@@ -514,28 +514,36 @@ class FlappyBirdGame {
         // 显示当前模式的排行榜数据
         this.displayLeaderboard(this.getLeaderboardForCurrentMode());
         
-        // 移动设备上，确保"再玩一次"按钮可见
-        if (this.isMobile) {
-            // 延迟一点，等排行榜加载完成
-            setTimeout(() => {
-                // 滚动到底部确保按钮可见
-                const gameOverScreen = document.getElementById('game-over-screen');
-                const restartButton = document.getElementById('restart-button');
-                
-                // 如果内容过长，确保按钮可见
-                if (gameOverScreen.scrollHeight > gameOverScreen.clientHeight) {
-                    // 将"再玩一次"按钮放到可视范围内
-                    restartButton.scrollIntoView({ behavior: 'smooth', block: 'end' });
-                }
-            }, 500);
+        // 先隐藏按钮，1秒后显示
+        const buttonContainer = document.querySelector('.restart-button-container');
+        if (buttonContainer) {
+            buttonContainer.style.display = 'none';
         }
         
         // 设置游戏刚刚结束的标志
         this.gameJustEnded = true;
         this.canRestartAfterGameOver = false;
         
-        // 1秒后允许重新开始游戏
+        // 1秒后显示按钮并允许重新开始游戏
         setTimeout(() => {
+            // 显示按钮
+            if (buttonContainer) {
+                buttonContainer.style.display = 'flex';
+                
+                // 移动设备上，确保"再玩一次"按钮可见
+                if (this.isMobile) {
+                    // 滚动到底部确保按钮可见
+                    const gameOverScreen = document.getElementById('game-over-screen');
+                    const restartButton = document.getElementById('restart-button');
+                    
+                    // 如果内容过长，确保按钮可见
+                    if (gameOverScreen.scrollHeight > gameOverScreen.clientHeight) {
+                        // 将按钮放到可视范围内
+                        restartButton.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                    }
+                }
+            }
+            
             this.canRestartAfterGameOver = true;
             this.gameJustEnded = false;
         }, 1000);
