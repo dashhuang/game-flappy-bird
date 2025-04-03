@@ -1131,13 +1131,14 @@ class FlappyBirdGame {
         let tombstoneName = '';
         let tombstoneColor = '#E74C3C'; // 默认颜色（红色）
         
-        if (this.tombstones) {
+        if (this.tombstones && this.tombstones.length > 0) {
             const tombstone = this.tombstones.find(t => t.score === pipeNumber && !t.placed);
             if (tombstone) {
                 hasTombstone = true;
                 tombstoneName = tombstone.name;
                 tombstoneColor = tombstone.color; // 使用存储的颜色
                 tombstone.placed = true;
+                console.log(`【调试】为第${pipeNumber}对管道添加旗子，玩家:"${tombstoneName}"，分数:${tombstone.score}`);
             }
         }
         
@@ -1449,22 +1450,29 @@ class FlappyBirdGame {
     
     // 在后台加载排行榜数据
     loadLeaderboardInBackground() {
+        console.log("【调试】开始加载排行榜数据...");
         fetch('/api/get-scores')
             .then(response => {
                 if (!response.ok) {
+                    console.error("【调试】获取排行榜数据失败，状态码:", response.status);
                     throw new Error('获取排行榜数据失败');
                 }
+                console.log("【调试】排行榜API响应成功");
                 return response.json();
             })
             .then(data => {
+                console.log("【调试】排行榜API返回数据条数:", data.length);
+                if (data.length > 0) {
+                    console.log("【调试】排行榜第一条数据示例:", JSON.stringify(data[0]));
+                }
                 this.leaderboardData = data;
-                console.log("排行榜数据加载成功");
+                console.log("【调试】排行榜数据加载成功，共", data.length, "条记录");
                 // 处理排行榜数据以创建墓碑
                 this.processLeaderboardForTombstones();
             })
             .catch(error => {
                 // 只在控制台记录错误，不显示给用户
-                console.error("加载排行榜失败:", error);
+                console.error("【调试】加载排行榜失败:", error);
                 // 失败时使用空数组
                 this.leaderboardData = [];
             });
@@ -1810,14 +1818,27 @@ class FlappyBirdGame {
     
     // 处理排行榜数据，创建墓碑位置信息
     processLeaderboardForTombstones() {
+        console.log("【调试】开始处理排行榜数据创建旗子...");
         if (!this.leaderboardData || !Array.isArray(this.leaderboardData)) {
+            console.warn("【调试】排行榜数据不存在或不是数组");
             return;
         }
         
         this.tombstones = []; // 重置旗子信息
         
         const modeLeaderboard = this.getLeaderboardForCurrentMode();
-        if (modeLeaderboard.length === 0) return;
+        console.log("【调试】当前模式排行榜数据条目数:", modeLeaderboard.length);
+        if (modeLeaderboard.length === 0) {
+            console.warn("【调试】当前模式没有排行榜数据，不创建旗子");
+            return;
+        }
+        
+        // 输出一些排行榜数据进行检查
+        console.log("【调试】排行榜前3条数据:", modeLeaderboard.slice(0, 3).map(e => ({
+            name: e.name,
+            score: e.score,
+            mode: e.mode || "未设置"
+        })));
         
         const scoreGroups = {};
         modeLeaderboard.forEach(entry => {
@@ -1826,6 +1847,9 @@ class FlappyBirdGame {
                 scoreGroups[score] = entry;
             }
         });
+        
+        console.log("【调试】分数分组后有", Object.keys(scoreGroups).length, "个不同分数");
+        console.log("【调试】分数列表:", Object.keys(scoreGroups).map(Number).sort((a, b) => a - b).join(", "));
         
         for (const score in scoreGroups) {
             const entry = scoreGroups[score];
@@ -1841,6 +1865,7 @@ class FlappyBirdGame {
                 color: flagColor // 存储计算好的颜色
             });
         }
+        console.log("【调试】创建了", this.tombstones.length, "个旗子数据");
     }
     
     // 绘制地面
@@ -1863,6 +1888,7 @@ class FlappyBirdGame {
             return;
         }
         
+        let flagsDrawn = 0;
         for (const pipe of this.pipes) {
             if (!pipe.isTop || !pipe.hasTombstone) {
                 continue;
@@ -1917,6 +1943,14 @@ class FlappyBirdGame {
             this.ctx.font = 'bold 14px Arial';
             this.ctx.textAlign = 'center';
             this.ctx.fillText(pipe.tombstoneName, flagX + 20, this.canvas.height - this.GROUND_HEIGHT - 45 + 5 + 20 + 15);
+            
+            flagsDrawn++;
+        }
+        
+        // 仅在首次绘制或数量变化时输出日志
+        if (flagsDrawn > 0 && (!this.lastFlagsDrawn || this.lastFlagsDrawn !== flagsDrawn)) {
+            console.log(`【调试】当前屏幕绘制了${flagsDrawn}个旗子`);
+            this.lastFlagsDrawn = flagsDrawn;
         }
     }
 }
