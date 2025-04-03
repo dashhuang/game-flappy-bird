@@ -18,6 +18,21 @@ export default async function handler(req, res) {
     for (const id of topScoreIds) {
       const scoreData = await redis.hGetAll(`score:${id}`);
       if (scoreData) {
+        // 确保所有必要字段都存在
+        if (!scoreData.mode) {
+          scoreData.mode = 'endless'; // 默认为无尽模式
+        }
+        // 对于挑战模式，确保日期存在
+        if (scoreData.mode === 'challenge' && !scoreData.date) {
+          // 使用一个默认日期，或从ID中提取时间戳作为日期
+          const timestamp = parseInt(id);
+          if (!isNaN(timestamp)) {
+            const date = new Date(timestamp);
+            scoreData.date = date.toISOString().split('T')[0]; // 格式: YYYY-MM-DD
+          } else {
+            scoreData.date = '2023-01-01'; // 默认日期
+          }
+        }
         scores.push(scoreData);
       }
     }

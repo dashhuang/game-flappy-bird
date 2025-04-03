@@ -5,10 +5,10 @@ export default async function handler(req, res) {
     return res.status(405).send('方法不允许');
   }
   
-  const { name, score } = req.body;
+  const { name, score, mode, date } = req.body;
   
-  if (!name || !score) {
-    return res.status(400).send('缺少名字或分数');
+  if (!name || !score || !mode) {
+    return res.status(400).send('缺少必要参数');
   }
   
   try {
@@ -17,16 +17,21 @@ export default async function handler(req, res) {
       url: process.env.REDIS_URL
     }).connect();
     
-    // 检查是否已存在同名用户的所有记录
+    // 检查是否已存在同名用户、相同模式的所有记录
     const allScoreIds = await redis.zRange('scores', 0, -1);
     const sameNameIds = []; // 存储所有同名用户的ID
     let highestScore = parseInt(score); // 假设当前提交的分数最高
     let highestScoreId = null; // 最高分对应的ID
     
-    // 搜索所有分数记录，查找同名用户
+    // 搜索所有分数记录，查找同名用户且相同模式
     for (const id of allScoreIds) {
       const scoreData = await redis.hGetAll(`score:${id}`);
-      if (scoreData && scoreData.name === name) {
+      if (scoreData && scoreData.name === name && scoreData.mode === mode) {
+        // 如果是每日挑战模式，还需匹配日期
+        if (mode === 'challenge' && (!date || scoreData.date !== date)) {
+          continue; // 跳过不同日期的挑战
+        }
+        
         sameNameIds.push(id);
         const currentScore = parseInt(scoreData.score);
         // 找出最高分及其ID
@@ -46,11 +51,20 @@ export default async function handler(req, res) {
       const newId = Date.now().toString();
       const timestamp = Date.now();
       
-      await redis.hSet(`score:${newId}`, {
+      // 准备要保存的数据
+      const scoreDataToSave = {
         name,
         score: parseInt(score),
-        timestamp
-      });
+        timestamp,
+        mode
+      };
+      
+      // 如果是每日挑战模式，添加日期
+      if (mode === 'challenge' && date) {
+        scoreDataToSave.date = date;
+      }
+      
+      await redis.hSet(`score:${newId}`, scoreDataToSave);
       
       // 计算排序分数：实际分数 * 10000000000（10位） + (10000000000 - 时间戳)
       // 这样可以保证分数相同时，先提交的排在前面
@@ -68,11 +82,20 @@ export default async function handler(req, res) {
         const newId = Date.now().toString();
         const timestamp = Date.now();
         
-        await redis.hSet(`score:${newId}`, {
+        // 准备要保存的数据
+        const scoreDataToSave = {
           name,
           score: parseInt(score),
-          timestamp
-        });
+          timestamp,
+          mode
+        };
+        
+        // 如果是每日挑战模式，添加日期
+        if (mode === 'challenge' && date) {
+          scoreDataToSave.date = date;
+        }
+        
+        await redis.hSet(`score:${newId}`, scoreDataToSave);
         
         // 计算排序分数
         const sortScore = parseInt(score) * 10000000000 + (10000000000 - Math.floor(timestamp / 1000));
