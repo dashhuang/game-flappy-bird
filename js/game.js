@@ -151,7 +151,7 @@ class FlappyBirdGame {
         this.leaderboardData = [];
         // 新增：存储排行榜墓碑位置信息
         this.tombstones = [];
-        this.scoreThreshold = 2;
+        this.scoreThreshold = 10; // 修改阈值从2改为10
         this.leaderboardUpdated = false;
         this.scoreSubmitted = false;
         this.gameJustEnded = false;
@@ -169,12 +169,15 @@ class FlappyBirdGame {
         // 启动配置检查定时器
         this.startConfigCheckTimer();
         
-        // 在后台加载排行榜数据
-        this.loadLeaderboardInBackground();
+        // 在后台加载排行榜数据 - 移除这行，避免游戏启动就加载排行榜
+        // this.loadLeaderboardInBackground();
         
         // 初始化游戏循环
         this.lastTime = 0;
         requestAnimationFrame((t) => this.loop(t));
+        
+        // 新增：记录生成的管道对总数
+        this.pipePairSpawnCount = 0;
     }
     
     // 设置事件监听器
@@ -232,15 +235,44 @@ class FlappyBirdGame {
         
         // 无尽模式按钮
         document.getElementById('endless-mode-button').addEventListener('click', () => {
+            // 先保存当前模式，检查是否从每日挑战切换过来
+            const wasInDailyChallenge = this.gameMode === GAME_MODE.DAILY_CHALLENGE;
+            
+            // 设置为无尽模式
             this.gameMode = GAME_MODE.ENDLESS;
+            
+            // 如果是从每日挑战切换过来，重置相关数据
+            if (wasInDailyChallenge) {
+                // 清空旗子数据，强制重新加载
+                this.tombstones = [];
+                this.leaderboardUpdated = false;
+                
+                // 立即加载无尽模式排行榜并强制处理，确保旗子正确显示
+                this.loadLeaderboardInBackground(true);
+            }
+            
+            // 开始游戏
             this.startGame();
         });
         
         // 每日挑战按钮
         document.getElementById('daily-challenge-button').addEventListener('click', () => {
+            // 先保存当前模式，检查是否从无尽模式切换过来
+            const wasInEndlessMode = this.gameMode === GAME_MODE.ENDLESS;
+            
+            // 设置为每日挑战模式
             this.gameMode = GAME_MODE.DAILY_CHALLENGE;
+            
             // 重置种子以确保每次开始挑战时使用相同的随机序列
             this.resetDailyChallengeSeed();
+            
+            // 如果是从无尽模式切换过来，强制加载每日挑战排行榜
+            if (wasInEndlessMode) {
+                // tombstones和leaderboardUpdated已在resetDailyChallengeSeed重置
+                // 立即加载每日挑战排行榜并强制处理
+                this.loadLeaderboardInBackground(true);
+            }
+            
             // 重置管道计数
             this.pipeCount = 0;
             this.startGame();
@@ -425,6 +457,10 @@ class FlappyBirdGame {
             submitButton.textContent = '提交分数';
         }
         
+        // 不需要每次开始游戏都重新加载排行榜数据
+        // 在切换游戏模式时已经处理了排行榜加载
+        // this.loadLeaderboardInBackground();
+        
         // 根据游戏模式设置难度
         if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
             // 每日挑战从中等难度开始
@@ -503,6 +539,11 @@ class FlappyBirdGame {
         // 生成种子
         this.dailyChallengeSeed = this.generateDailySeed();
         this.seededRandom = this.mulberry32(this.dailyChallengeSeed);
+        
+        // 重置旗子数据，确保加载正确的每日挑战旗子
+        this.tombstones = [];
+        // 重置排行榜更新标志，确保可以加载新数据
+        this.leaderboardUpdated = false;
     }
     
     // 伪随机数生成器 (Mulberry32算法)
@@ -530,6 +571,12 @@ class FlappyBirdGame {
         this.gameOverScreen.style.display = 'none';
         document.getElementById('victory-screen').style.display = 'none';
         this.scoreDisplay.style.display = 'none';
+        
+        // 如果排行榜数据还未加载，则加载数据以显示在主菜单
+        if (!this.leaderboardData || this.leaderboardData.length === 0) {
+            console.log("在主菜单加载排行榜数据...");
+            this.loadLeaderboardInBackground(true);
+        }
     }
     
     // 显示胜利界面
@@ -567,6 +614,13 @@ class FlappyBirdGame {
         this.gameState = GAME_STATE.GAME_OVER;
         this.gameOverScreen.style.display = 'flex';
         this.finalScore.textContent = this.score;
+        
+        // 在游戏结束且分数超过阈值时加载排行榜数据
+        if (this.score >= this.scoreThreshold && !this.leaderboardUpdated) {
+            this.leaderboardUpdated = true;
+            console.log(`游戏结束，分数(${this.score})超过${this.scoreThreshold}分，更新排行榜数据`);
+            this.loadLeaderboardInBackground();
+        }
         
         // 获取并显示当前模式的最高分
         const currentHighScore = this.getCurrentModeHighScore();
@@ -819,6 +873,9 @@ class FlappyBirdGame {
         // 随机生成新颜色
         this.birdColor = this.getRandomColor();
         this.pipeColors = this.generatePipeColors();
+        
+        // 新增：重置管道对计数器
+        this.pipePairSpawnCount = 0;
     }
     
     // 小鸟跳跃
@@ -943,15 +1000,6 @@ class FlappyBirdGame {
                         }
                     }
                     
-                    // 检查是否达到分数阈值且尚未更新过排行榜
-                    if (this.score >= this.scoreThreshold && !this.leaderboardUpdated) {
-                        this.leaderboardUpdated = true;
-                        // 在后台更新排行榜数据，不阻塞游戏
-                        console.log(`达到得分阈值: ${this.scoreThreshold}分，更新排行榜数据`);
-                        // 在游戏结束时更新排行榜，避免游戏过程中闪烁
-                        // this.loadLeaderboardInBackground();
-                    }
-                    
                     // 更新最高分
                     if (this.score > this.highScore) {
                         this.highScore = this.score;
@@ -1068,6 +1116,13 @@ class FlappyBirdGame {
     
     // 生成管道
     spawnPipe() {
+        // 增加生成对数计数器
+        this.pipePairSpawnCount++;
+        const pipeNumber = this.pipePairSpawnCount; // 使用计数器作为管道编号
+
+        // 移除调试日志
+        // console.log(`【调试】spawnPipe called for Pair #${pipeNumber}. Current pipes.length: ${currentPipeLength}`);
+
         // 确保必要的属性存在
         if (!this.PIPE_WIDTH) this.PIPE_WIDTH = 80;
         if (!this.GROUND_HEIGHT) this.GROUND_HEIGHT = 50;
@@ -1128,22 +1183,43 @@ class FlappyBirdGame {
             }
         }
         
-        // 计算这是第几对管道
-        const pipeNumber = this.pipes.length / 2 + 1;
-        
+        // 不再需要根据 pipes.length 重新计算 pipeNumber
+        // const pipeNumber = this.pipes.length / 2 + 1;
+
+        // 移除条件日志
+        // if (pipeNumber >= 8) { 
+        //     console.log(`【调试】(Conditional >= 8 Log Check) 即将生成第 ${pipeNumber} 对管道。当前墓碑数据:`, this.tombstones ? JSON.stringify(this.tombstones) : '墓碑数据不存在');
+        // }
+
         let hasTombstone = false;
         let tombstoneName = '';
-        let tombstoneColor = '#E74C3C'; // 默认颜色（红色）
-        
+        let tombstoneColor = '#E74C3C';
+
         if (this.tombstones && this.tombstones.length > 0) {
-            const tombstone = this.tombstones.find(t => parseInt(t.score) === pipeNumber && !t.placed);
+            // 移除调试日志
+            // if (pipeNumber === 10) {
+            //     console.log(`【调试】尝试为第 ${pipeNumber} 对管道查找旗子。当前墓碑数据（确认查找前）:`, JSON.stringify(this.tombstones));
+            // }
+            
+            const tombstone = this.tombstones.find(t => t.score === pipeNumber && !t.placed);
+            
+            // 移除调试日志
+            // if (pipeNumber === 10) {
+            //     console.log(`【调试】查找第 ${pipeNumber} 对管道的旗子结果:`, tombstone ? JSON.stringify(tombstone) : '未找到');
+            // }
+            
             if (tombstone) {
                 hasTombstone = true;
                 tombstoneName = tombstone.name;
-                tombstoneColor = tombstone.color; // 使用存储的颜色
+                tombstoneColor = tombstone.color;
                 tombstone.placed = true;
-                console.log(`【调试】为第${pipeNumber}对管道添加旗子，玩家:"${tombstoneName}"，分数:${tombstone.score}`);
+                console.log(`【调试】为第${pipeNumber}对管道添加旗子，玩家:"${tombstoneName}"，分数:${tombstone.score}`); // 保留这个有用的日志
             }
+        } else {
+            // 移除调试日志
+            // if (pipeNumber >= 8) {
+            //     console.log(`【调试】无法查找旗子，因为 this.tombstones 不存在或为空。 PipeNumber: ${pipeNumber}`);
+            // }
         }
         
         // 上管道
@@ -1479,35 +1555,34 @@ class FlappyBirdGame {
     }
     
     // 在后台加载排行榜数据
-    loadLeaderboardInBackground() {
-        console.log("【调试】开始加载排行榜数据...");
+    loadLeaderboardInBackground(forceProcess = false) {
+        const currentMode = this.gameMode === GAME_MODE.ENDLESS ? '无尽模式' : '每日挑战';
+        const dateInfo = this.gameMode === GAME_MODE.DAILY_CHALLENGE ? ` (${this.currentChallengeDate})` : '';
+        console.log(`加载${currentMode}${dateInfo}排行榜数据...`);
+        
         fetch('/api/get-scores')
             .then(response => {
                 if (!response.ok) {
-                    console.error("【调试】获取排行榜数据失败，状态码:", response.status);
+                    console.error("获取排行榜数据失败，状态码:", response.status);
                     throw new Error('获取排行榜数据失败');
                 }
-                console.log("【调试】排行榜API响应成功");
                 return response.json();
             })
             .then(data => {
-                console.log("【调试】排行榜API返回数据条数:", data.length);
-                if (data.length > 0) {
-                    console.log("【调试】排行榜第一条数据示例:", JSON.stringify(data[0]));
-                }
                 this.leaderboardData = data;
-                console.log("【调试】排行榜数据加载成功，共", data.length, "条记录");
-                // 只在非游戏状态下更新墓碑数据，避免游戏中闪烁
-                if (this.gameState !== GAME_STATE.PLAYING) {
+                
+                // 显示筛选后的数据条数
+                const filteredData = this.getLeaderboardForCurrentMode();
+                console.log(`${currentMode}${dateInfo}排行榜数据加载成功，共 ${filteredData.length} 条记录`);
+                
+                if (this.gameState !== GAME_STATE.PLAYING || forceProcess) {
                     this.processLeaderboardForTombstones();
                 } else {
-                    console.log("【调试】游戏进行中，延迟处理墓碑数据以避免闪烁");
+                    console.log("游戏进行中，延迟处理旗子数据以避免闪烁");
                 }
             })
             .catch(error => {
-                // 只在控制台记录错误，不显示给用户
-                console.error("【调试】加载排行榜失败:", error);
-                // 失败时使用空数组
+                console.error("加载排行榜失败:", error);
                 this.leaderboardData = [];
             });
     }
@@ -1843,7 +1918,7 @@ class FlappyBirdGame {
         
         // 排行榜数据
         this.leaderboardData = [];
-        this.scoreThreshold = 2; // 更新排行榜的分数阈值
+        this.scoreThreshold = 10; // 更新排行榜的分数阈值 
         this.leaderboardUpdated = false; // 跟踪本局游戏是否已更新过排行榜
         this.scoreSubmitted = false; // 跟踪分数是否已被提交
         
@@ -1853,31 +1928,32 @@ class FlappyBirdGame {
         
         // 根据设备类型显示不同的控制提示
         this.updateControlsDisplay();
+        
+        // 新增：初始化管道对计数器
+        this.pipePairSpawnCount = 0;
+        
+        // 初始化时加载排行榜数据
+        this.loadLeaderboardInBackground(true);
     }
     
     // 处理排行榜数据，创建墓碑位置信息
     processLeaderboardForTombstones() {
-        console.log("【调试】开始处理排行榜数据创建旗子...");
+        const currentMode = this.gameMode === GAME_MODE.ENDLESS ? '无尽模式' : '每日挑战';
+        const dateInfo = this.gameMode === GAME_MODE.DAILY_CHALLENGE ? ` (${this.currentChallengeDate})` : '';
+        console.log(`开始为${currentMode}${dateInfo}创建旗子数据...`);
+        
         if (!this.leaderboardData || !Array.isArray(this.leaderboardData)) {
-            console.warn("【调试】排行榜数据不存在或不是数组");
+            console.warn("排行榜数据不存在或不是数组，无法创建旗子");
             return;
         }
         
-        this.tombstones = []; // 重置旗子信息
+        this.tombstones = [];
         
         const modeLeaderboard = this.getLeaderboardForCurrentMode();
-        console.log("【调试】当前模式排行榜数据条目数:", modeLeaderboard.length);
         if (modeLeaderboard.length === 0) {
-            console.warn("【调试】当前模式没有排行榜数据，不创建旗子");
+            console.warn(`${currentMode}${dateInfo}没有排行榜数据，不创建旗子`);
             return;
         }
-        
-        // 输出一些排行榜数据进行检查
-        console.log("【调试】排行榜前3条数据:", modeLeaderboard.slice(0, 3).map(e => ({
-            name: e.name,
-            score: e.score,
-            mode: e.mode || "未设置"
-        })));
         
         const scoreGroups = {};
         modeLeaderboard.forEach(entry => {
@@ -1887,27 +1963,27 @@ class FlappyBirdGame {
             }
         });
         
-        console.log("【调试】分数分组后有", Object.keys(scoreGroups).length, "个不同分数");
-        console.log("【调试】分数列表:", Object.keys(scoreGroups).map(Number).sort((a, b) => a - b).join(", "));
+        // 输出分数列表
+        const scoreList = Object.keys(scoreGroups).map(Number).sort((a, b) => a - b);
+        console.log(`${currentMode}${dateInfo}有 ${scoreList.length} 个不同分数: ${scoreList.join(', ')}`);
         
         for (const score in scoreGroups) {
             const entry = scoreGroups[score];
             const name = entry.name;
-            // 根据名字哈希值选择颜色
             const colorIndex = simpleStringHash(name) % FLAG_COLORS.length;
             const flagColor = FLAG_COLORS[colorIndex];
             
             const scoreInt = parseInt(score);
-            console.log(`【调试】创建旗子 - 分数:${scoreInt}, 玩家:${name}, 颜色:${flagColor}`);
             
             this.tombstones.push({
                 score: scoreInt,
                 name: name,
                 placed: false,
-                color: flagColor // 存储计算好的颜色
+                color: flagColor
             });
         }
-        console.log("【调试】创建了", this.tombstones.length, "个旗子数据");
+        
+        console.log(`为${currentMode}${dateInfo}创建了 ${this.tombstones.length} 个旗子数据`);
     }
     
     // 绘制地面
@@ -1989,7 +2065,12 @@ class FlappyBirdGame {
             flagsDrawn++;
         }
         
-        // 仅在首次绘制或数量变化时输出日志
+        // 移除这个日志，保留【调试】当前屏幕绘制了...更佳
+        // if (flagsDrawn > 0 && (!this.lastFlagsDrawn || this.lastFlagsDrawn !== flagsDrawn)) {
+        //     console.log(`【调试】当前屏幕绘制了${flagsDrawn}个旗子`); 
+        //     this.lastFlagsDrawn = flagsDrawn;
+        // }
+        // 保留更详细的日志
         if (flagsDrawn > 0 && (!this.lastFlagsDrawn || this.lastFlagsDrawn !== flagsDrawn)) {
             console.log(`【调试】当前屏幕绘制了${flagsDrawn}个旗子`);
             this.lastFlagsDrawn = flagsDrawn;

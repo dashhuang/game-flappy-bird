@@ -58,24 +58,11 @@ app.get('/api/game-config', (req, res) => {
 
 // 模拟获取分数API
 app.get('/api/get-scores', (req, res) => {
-  // 模拟排行榜数据 (包含1-9分)
+  // 模拟排行榜数据 (只包含3、5、10分)
   const mockScores = [
-    // 1-9分数据
-    { name: "小九", score: "9", mode: "endless", timestamp: Date.now() - 1000 },
-    { name: "小八", score: "8", mode: "endless", timestamp: Date.now() - 2000 },
-    { name: "小七", score: "7", mode: "endless", timestamp: Date.now() - 3000 },
-    { name: "小六", score: "6", mode: "endless", timestamp: Date.now() - 4000 },
+    { name: "小十", score: "10", mode: "endless", timestamp: Date.now() - 1000 },
     { name: "小五", score: "5", mode: "endless", timestamp: Date.now() - 5000 },
-    { name: "小四", score: "4", mode: "endless", timestamp: Date.now() - 6000 },
     { name: "小三", score: "3", mode: "endless", timestamp: Date.now() - 7000 },
-    { name: "小二", score: "2", mode: "endless", timestamp: Date.now() - 8000 },
-    { name: "小一", score: "1", mode: "endless", timestamp: Date.now() - 9000 },
-    // 其他高分数据
-    { name: "张三", score: "98", mode: "endless", timestamp: Date.now() - 10000 },
-    { name: "李四", score: "85", mode: "endless", timestamp: Date.now() - 20000 },
-    { name: "王五", score: "75", mode: "endless", timestamp: Date.now() - 30000 },
-    { name: "赵六", score: "70", mode: "endless", timestamp: Date.now() - 40000 },
-    { name: "孙七", score: "65", mode: "endless", timestamp: Date.now() - 50000 }
   ];
   
   res.status(200).json(mockScores);
