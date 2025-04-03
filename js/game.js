@@ -104,6 +104,9 @@ class FlappyBirdGame {
         this.scoreDisplayed = false;
         this.animationFrameId = null;
         
+        // 小鸟旋转平滑过渡参数
+        this.rotationSpeed = 0.15; // 旋转速度因子（0-1之间，越大越快）
+        
         // 设置事件监听
         this.setupEventListeners();
         
@@ -655,7 +658,8 @@ class FlappyBirdGame {
             width: this.BIRD_WIDTH,
             height: this.BIRD_HEIGHT,
             velocity: 0,
-            rotation: 0
+            rotation: 0,
+            targetRotation: 0 // 添加目标旋转角度
         };
         
         this.pipes = [];
@@ -707,6 +711,9 @@ class FlappyBirdGame {
             } else {
                 this.bird.velocity = this.FLAP_POWER;
             }
+            
+            // 设置目标旋转角度为向上姿态
+            this.bird.targetRotation = -20;
         } else if (this.gameState === GAME_STATE.MENU) {
             this.startGame();
         } else if (this.gameState === GAME_STATE.GAME_OVER && this.canRestartAfterGameOver && !this.gameJustEnded) {
@@ -726,12 +733,29 @@ class FlappyBirdGame {
         this.bird.velocity += this.GRAVITY * dt;
         this.bird.y += this.bird.velocity * dt;
         
-        // 旋转小鸟（根据速度）
+        // 计算小鸟旋转的目标角度（根据速度）
         if (this.bird.velocity < 0) {
-            this.bird.rotation = -20; // 向上飞行
+            // 向上飞行
+            this.bird.targetRotation = -20;
         } else {
-            this.bird.rotation = Math.min(90, this.bird.velocity * 2); // 向下坠落
+            // 向下坠落 - 角度随速度变化，但最大为90度
+            this.bird.targetRotation = Math.min(90, this.bird.velocity * 2);
         }
+        
+        // 平滑旋转过渡 - 使用线性插值(lerp)
+        // 如果尚未设置targetRotation，则初始化为当前rotation
+        if (this.bird.targetRotation === undefined) {
+            this.bird.targetRotation = this.bird.rotation || 0;
+        }
+        
+        // 计算当前旋转角度与目标角度之间的差值
+        const rotationDiff = this.bird.targetRotation - this.bird.rotation;
+        
+        // 根据旋转速度和帧率独立性计算本帧的旋转变化量
+        const rotationChange = rotationDiff * this.rotationSpeed * dt;
+        
+        // 更新当前旋转角度
+        this.bird.rotation += rotationChange;
         
         // 碰到天花板或地面时结束游戏
         if (this.bird.y < 0 || this.bird.y + this.bird.height > this.canvas.height - this.GROUND_HEIGHT) {
@@ -1528,7 +1552,8 @@ class FlappyBirdGame {
             width: this.BIRD_WIDTH || 40,  // 使用默认值防止undefined
             height: this.BIRD_HEIGHT || 30,
             velocity: 0,
-            rotation: 0
+            rotation: 0,
+            targetRotation: 0 // 添加目标旋转角度
         };
         
         this.pipes = [];
