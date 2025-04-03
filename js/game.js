@@ -49,6 +49,45 @@ const GAME_MODE = {
 // 游戏各种延迟时间常量（单位：毫秒）
 const GAME_OVER_DELAY = 500; // 游戏结束后按钮显示的延迟时间
 
+// 旗子颜色列表
+const FLAG_COLORS = [
+    // 原有10种颜色
+    '#E74C3C', // 红色
+    '#3498DB', // 蓝色
+    '#F1C40F', // 黄色
+    '#9B59B6', // 紫色
+    '#2ECC71', // 翠绿色
+    '#E67E22', // 橙色
+    '#1ABC9C', // 青色
+    '#EC407A', // 粉色
+    '#BDC3C7', // 浅灰色
+    '#F39C12', // 琥珀色
+    
+    // 新增10种颜色
+    '#16A085', // 深青色
+    '#27AE60', // 森林绿
+    '#2980B9', // 钢蓝色
+    '#8E44AD', // 深紫色
+    '#D35400', // 深橙色
+    '#C0392B', // 深红色
+    '#7F8C8D', // 深灰色
+    '#2C3E50', // 深蓝灰
+    '#FFC300', // 金黄色
+    '#FF5733'  // 珊瑚红
+];
+
+// 简单的字符串哈希函数 (用于名字到颜色的映射)
+function simpleStringHash(str) {
+    let hash = 0;
+    if (str.length === 0) return hash;
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash |= 0; // Convert to 32bit integer
+    }
+    return Math.abs(hash);
+}
+
 // 游戏类
 class FlappyBirdGame {
     constructor() {
@@ -107,6 +146,8 @@ class FlappyBirdGame {
         this.highScore = localStorage.getItem('flappyBirdHighScore') || 0;
         this.initialHighScore = this.highScore;
         this.leaderboardData = [];
+        // 新增：存储排行榜墓碑位置信息
+        this.tombstones = [];
         this.scoreThreshold = 2;
         this.leaderboardUpdated = false;
         this.scoreSubmitted = false;
@@ -755,6 +796,13 @@ class FlappyBirdGame {
         // 重置分数提交状态
         this.scoreSubmitted = false;
         
+        // 重置旗子的放置状态，使它们能在新游戏中再次生成
+        if (this.tombstones && this.tombstones.length > 0) {
+            this.tombstones.forEach(tombstone => {
+                tombstone.placed = false;
+            });
+        }
+        
         // 重置提交按钮状态 - 修复Bug
         const submitButton = document.getElementById('submit-score-button');
         if (submitButton) {
@@ -910,7 +958,15 @@ class FlappyBirdGame {
         }
         
         // 移除离开屏幕的管道
-        this.pipes = this.pipes.filter(pipe => pipe.x + this.PIPE_WIDTH > 0);
+        this.pipes = this.pipes.filter(pipe => {
+            // 如果是带有墓碑的管道，需要考虑墓碑的宽度
+            if (pipe.isTop && pipe.hasTombstone) {
+                // 墓碑在管道右侧60像素，加上墓碑自身宽度（约30像素）
+                return pipe.x + this.PIPE_WIDTH + 90 > 0;
+            }
+            // 普通管道正常移除
+            return pipe.x + this.PIPE_WIDTH > 0;
+        });
     }
     
     // 计算当前难度系数的工具方法，确保所有地方使用相同的计算逻辑
@@ -1068,6 +1124,23 @@ class FlappyBirdGame {
             }
         }
         
+        // 计算这是第几对管道
+        const pipeNumber = this.pipes.length / 2 + 1;
+        
+        let hasTombstone = false;
+        let tombstoneName = '';
+        let tombstoneColor = '#E74C3C'; // 默认颜色（红色）
+        
+        if (this.tombstones) {
+            const tombstone = this.tombstones.find(t => t.score === pipeNumber && !t.placed);
+            if (tombstone) {
+                hasTombstone = true;
+                tombstoneName = tombstone.name;
+                tombstoneColor = tombstone.color; // 使用存储的颜色
+                tombstone.placed = true;
+            }
+        }
+        
         // 上管道
         this.pipes.push({
             x: this.canvas.width,
@@ -1075,7 +1148,11 @@ class FlappyBirdGame {
             width: this.PIPE_WIDTH,
             height: newGapPosition,
             passed: false,
-            isTop: true
+            isTop: true,
+            pipeNumber: pipeNumber,
+            hasTombstone: hasTombstone,
+            tombstoneName: tombstoneName,
+            tombstoneColor: tombstoneColor // 传递颜色信息
         });
         
         // 下管道
@@ -1085,7 +1162,8 @@ class FlappyBirdGame {
             width: this.PIPE_WIDTH,
             height: this.canvas.height - (newGapPosition + this.currentPipeGap) - this.GROUND_HEIGHT,
             passed: false,
-            isTop: false
+            isTop: false,
+            pipeNumber: pipeNumber
         });
     }
     
@@ -1107,14 +1185,10 @@ class FlappyBirdGame {
         this.scoreDisplay.textContent = this.score;
     }
     
-    // 渲染游戏
+    // 渲染游戏 - 改进帧率独立性
     render() {
-        // 确保鸟和相关配置已初始化
-        if (!this.bird || !this.birdColor) {
-            // 如果缺少关键对象，记录错误并尝试重新初始化
-            console.error('渲染错误：缺少关键游戏对象');
-            
-            // 如果配置已加载但游戏对象未初始化，尝试初始化
+        // 验证游戏元素是否初始化
+        if (!this.bird) {
             if (this.isConfigLoaded && !this.bird) {
                 console.log('尝试重新初始化游戏元素');
                 this.initGameAfterConfigLoaded();
@@ -1136,59 +1210,45 @@ class FlappyBirdGame {
         this.ctx.fillStyle = '#87CEEB';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // 绘制云朵 - 改进为从屏幕外生成和消失
+        // 绘制云朵 - 恢复之前的逻辑
         this.ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-        
-        // 根据屏幕宽度计算云朵数量
         const screenWidth = this.canvas.width;
         const cloudCount = screenWidth < 500 ? 3 : Math.min(Math.floor(screenWidth / 250) + 2, 5);
-        
-        // 计算每朵云的初始位置和速度
         for (let i = 0; i < cloudCount; i++) {
-            // 初始化云朵位置（如果尚未初始化）
             if (!this.cloudPositions) {
                 this.cloudPositions = [];
                 for (let j = 0; j < cloudCount; j++) {
-                    // 将云朵均匀分布在整个移动循环中
                     const initialOffset = (j / cloudCount) * (screenWidth + 400); 
                     this.cloudPositions.push({
                         x: initialOffset,
                         y: this.canvas.height * 0.2 + Math.sin(j) * 20,
                         size: 30 + Math.sin(j * 2) * 10,
-                        speed: 0.3 + Math.random() * 0.2, // 每朵云速度略有不同
+                        speed: 0.14 + Math.random() * 0.04, // 随机速度范围 [0.14, 0.18]
                         cloudType: Math.floor(Math.random() * 3) // 为每朵云分配固定类型
                     });
                 }
             }
-            
-            // 获取当前云朵数据
             const cloud = this.cloudPositions[i];
-            
-            // 移动云朵位置 - 使用帧率独立的移动
             cloud.x -= cloud.speed * deltaTime;
-            
-            // 当云朵完全移出屏幕后，重置到屏幕右侧外
             if (cloud.x < -cloud.size * 4) {
                 cloud.x = screenWidth + cloud.size * 2;
                 cloud.y = this.canvas.height * 0.2 + Math.sin(Date.now() / 1000 + i) * 20;
                 cloud.size = 30 + Math.sin(Date.now() / 1000 + i * 2) * 10;
-                // 有30%的概率改变云朵类型，让变化更自然
                 if (Math.random() < 0.3) {
                     cloud.cloudType = Math.floor(Math.random() * 3);
                 }
             }
-            
-            // 绘制云朵
             this.drawCloud(cloud.x, cloud.y, cloud.size, cloud.cloudType);
         }
         
         // 绘制管道
         for (const pipe of this.pipes) {
-            const pipeColor = pipe.isTop ? this.pipeColors.top : this.pipeColors.bottom;
-            const capHeight = 20;
+            // 获取此管道的颜色
+            const pipeColor = this.pipeColors.pipe;
+            const capHeight = 30; // 管道帽子高度
             
             // 管道主体
-            this.ctx.fillStyle = pipeColor.body;
+            this.ctx.fillStyle = pipeColor.main;
             this.ctx.fillRect(pipe.x, pipe.y, pipe.width, pipe.height);
             
             // 管道边缘
@@ -1200,13 +1260,8 @@ class FlappyBirdGame {
             }
         }
         
-        // 绘制地面
-        this.ctx.fillStyle = '#8B4513'; // 棕色
-        this.ctx.fillRect(0, this.canvas.height - this.GROUND_HEIGHT, this.canvas.width, this.GROUND_HEIGHT);
-        
-        // 绘制草地
-        this.ctx.fillStyle = '#32CD32'; // 绿色
-        this.ctx.fillRect(0, this.canvas.height - this.GROUND_HEIGHT, this.canvas.width, 15);
+        // 绘制地面（包括旗子）
+        this.drawGround();
         
         // 绘制小鸟
         this.ctx.save();
@@ -1285,12 +1340,8 @@ class FlappyBirdGame {
     // 生成管道颜色
     generatePipeColors() {
         return {
-            top: {
-                body: '#3CB371', // 绿色
-                border: '#2E8B57'
-            },
-            bottom: {
-                body: '#3CB371', // 绿色
+            pipe: {
+                main: '#3CB371', // 绿色
                 border: '#2E8B57'
             }
         };
@@ -1304,8 +1355,8 @@ class FlappyBirdGame {
         // 使用source-over模式合并云朵部分
         this.ctx.globalCompositeOperation = 'source-over';
         
-        // 所有云朵使用相同的纯白色
-        this.ctx.fillStyle = '#FFFFFF';
+        // 设置云朵颜色和透明度
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
         
         // 根据云朵类型绘制不同形状
         if (cloudType === 0) { // 基础蓬松云
@@ -1398,17 +1449,18 @@ class FlappyBirdGame {
     
     // 在后台加载排行榜数据
     loadLeaderboardInBackground() {
-        // 使用fetch API在后台加载排行榜
         fetch('/api/get-scores')
             .then(response => {
-                if (response.ok) {
-                    return response.json();
+                if (!response.ok) {
+                    throw new Error('获取排行榜数据失败');
                 }
-                return [];
+                return response.json();
             })
             .then(data => {
                 this.leaderboardData = data;
                 console.log("排行榜数据加载成功");
+                // 处理排行榜数据以创建墓碑
+                this.processLeaderboardForTombstones();
             })
             .catch(error => {
                 // 只在控制台记录错误，不显示给用户
@@ -1474,46 +1526,35 @@ class FlappyBirdGame {
             return;
         }
         
-        // 防止重复提交
         const submitButton = document.getElementById('submit-score-button');
         if (submitButton.disabled) {
-            return; // 如果按钮已被禁用，说明正在提交中，直接返回
+            // 防止重复提交
+            return;
         }
         
-        // 禁用按钮并更改文本
+        // 禁用按钮，防止重复点击
         submitButton.disabled = true;
         submitButton.textContent = '提交中...';
         
-        // 获取当前游戏模式
-        const mode = this.gameMode === GAME_MODE.ENDLESS ? 'endless' : 'challenge';
-        
-        // 创建提交数据
-        const scoreData = {
-            name: name,
-            score: this.score,
-            mode: mode
-        };
-        
-        // 如果是每日挑战模式，添加日期
-        if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
-            scoreData.date = this.currentChallengeDate;
-        }
-        
-        // 添加超时处理
+        // 在超时后恢复按钮状态
         const timeout = setTimeout(() => {
-            console.error('提交分数请求超时');
-            alert('提交超时，请重试');
             submitButton.disabled = false;
             submitButton.textContent = '提交分数';
+            alert('提交超时，请重试');
         }, 10000); // 10秒超时
         
         try {
             const response = await fetch('/api/submit-score', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(scoreData)
+                body: JSON.stringify({
+                    name: name,
+                    score: this.score,
+                    mode: this.gameMode === GAME_MODE.ENDLESS ? 'endless' : 'challenge',
+                    date: this.gameMode === GAME_MODE.DAILY_CHALLENGE ? this.currentChallengeDate : undefined
+                })
             });
             
             // 清除超时
@@ -1531,6 +1572,8 @@ class FlappyBirdGame {
                     this.leaderboardData = scores;
                     // 显示当前模式的排行榜
                     this.displayLeaderboard(this.getLeaderboardForCurrentMode());
+                    // 更新墓碑数据
+                    this.processLeaderboardForTombstones();
                 }
             } else {
                 alert('提交分数失败，请重试');
@@ -1763,6 +1806,118 @@ class FlappyBirdGame {
         
         // 根据设备类型显示不同的控制提示
         this.updateControlsDisplay();
+    }
+    
+    // 处理排行榜数据，创建墓碑位置信息
+    processLeaderboardForTombstones() {
+        if (!this.leaderboardData || !Array.isArray(this.leaderboardData)) {
+            return;
+        }
+        
+        this.tombstones = []; // 重置旗子信息
+        
+        const modeLeaderboard = this.getLeaderboardForCurrentMode();
+        if (modeLeaderboard.length === 0) return;
+        
+        const scoreGroups = {};
+        modeLeaderboard.forEach(entry => {
+            const score = parseInt(entry.score);
+            if (!scoreGroups[score]) {
+                scoreGroups[score] = entry;
+            }
+        });
+        
+        for (const score in scoreGroups) {
+            const entry = scoreGroups[score];
+            const name = entry.name;
+            // 根据名字哈希值选择颜色
+            const colorIndex = simpleStringHash(name) % FLAG_COLORS.length;
+            const flagColor = FLAG_COLORS[colorIndex];
+            
+            this.tombstones.push({
+                score: parseInt(score),
+                name: name,
+                placed: false,
+                color: flagColor // 存储计算好的颜色
+            });
+        }
+    }
+    
+    // 绘制地面
+    drawGround() {
+        // 绘制基本地面
+        this.ctx.fillStyle = '#8B4513'; // 棕色
+        this.ctx.fillRect(0, this.canvas.height - this.GROUND_HEIGHT, this.canvas.width, this.GROUND_HEIGHT);
+        
+        // 绘制草地
+        this.ctx.fillStyle = '#32CD32'; // 绿色
+        this.ctx.fillRect(0, this.canvas.height - this.GROUND_HEIGHT, this.canvas.width, 15);
+        
+        // 绘制旗子（如果有）
+        this.drawFlags(); // 调用新的函数名
+    }
+    
+    // 绘制旗子 (替代 drawTombstones)
+    drawFlags() { // 重命名函数更贴切
+        if (!this.pipes || this.pipes.length === 0) {
+            return;
+        }
+        
+        for (const pipe of this.pipes) {
+            if (!pipe.isTop || !pipe.hasTombstone) {
+                continue;
+            }
+            
+            // 找到对应的下一个管道（如果存在）
+            let nextPipe = null;
+            for (const p of this.pipes) {
+                if (p.isTop && p.pipeNumber === pipe.pipeNumber + 1) {
+                    nextPipe = p;
+                    break;
+                }
+            }
+            
+            // 计算墓碑位置（管道之后的位置）
+            let flagX = pipe.x + this.PIPE_WIDTH + 60; // 管道后方60像素
+            
+            // 如果旗子在屏幕外，跳过绘制
+            if (flagX < 0 || flagX > this.canvas.width) {
+                continue;
+            }
+            
+            // 绘制旗杆
+            this.ctx.fillStyle = '#8A5722'; // 棕色旗杆
+            this.ctx.beginPath();
+            this.ctx.roundRect(
+                flagX - 2, 
+                this.canvas.height - this.GROUND_HEIGHT - 45, 
+                4, 
+                45, 
+                [2, 2, 0, 0]
+            );
+            this.ctx.fill();
+            
+            // 绘制旗子（三角形）
+            this.ctx.fillStyle = pipe.tombstoneColor || '#E74C3C'; // 使用存储的颜色，提供默认值
+            this.ctx.beginPath();
+            this.ctx.moveTo(flagX, this.canvas.height - this.GROUND_HEIGHT - 45 + 5);
+            this.ctx.lineTo(flagX + 30, this.canvas.height - this.GROUND_HEIGHT - 45 + 5 + 20/2);
+            this.ctx.lineTo(flagX, this.canvas.height - this.GROUND_HEIGHT - 45 + 5 + 20);
+            this.ctx.closePath();
+            this.ctx.fill();
+            
+            // 添加旗子小圆球装饰
+            this.ctx.fillStyle = '#F9E076'; // 金色球
+            this.ctx.beginPath();
+            this.ctx.arc(flagX, this.canvas.height - this.GROUND_HEIGHT - 45, 4, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // 绘制玩家名字（放在旗面下方靠近旗杆）
+            this.ctx.fillStyle = '#666666'; // 更淡的灰色
+            this.ctx.font = 'bold 14px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(pipe.tombstoneName, flagX + 20, this.canvas.height - this.GROUND_HEIGHT - 45 + 5 + 20 + 15);
+        }
     }
 }
 
