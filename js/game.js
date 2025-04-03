@@ -549,12 +549,6 @@ class FlappyBirdGame {
         // 默认隐藏名字输入框
         document.getElementById('name-input-container').style.display = 'none';
         
-        // 检查玩家分数是否满足条件
-        this.checkIfScoreQualifies();
-        
-        // 显示当前模式的排行榜数据
-        this.displayLeaderboard(this.getLeaderboardForCurrentMode());
-        
         // 确保按钮容器可见但内容不可见（保留布局空间）
         const buttonContainer = document.querySelector('.restart-button-container');
         if (buttonContainer) {
@@ -567,29 +561,63 @@ class FlappyBirdGame {
         this.gameJustEnded = true;
         this.canRestartAfterGameOver = false;
         
-        // 0.5秒后显示按钮并允许重新开始游戏
-        setTimeout(() => {
-            // 显示按钮（使用visibility而不是display）
-            if (buttonContainer) {
-                buttonContainer.style.visibility = 'visible';
+        // 检查玩家分数是否满足条件
+        this.checkIfScoreQualifies();
+        
+        // 显示当前模式的排行榜数据
+        this.displayLeaderboard(this.getLeaderboardForCurrentMode());
+        
+        // 检查是否需要延迟显示按钮
+        const needsDelay = this.shouldDelayButtons();
+        
+        if (needsDelay) {
+            // 有资格提交分数时，延迟显示按钮
+            setTimeout(() => {
+                this.showGameOverButtons(buttonContainer);
+            }, GAME_OVER_DELAY);
+        } else {
+            // 没有资格提交分数时，立即显示按钮
+            this.showGameOverButtons(buttonContainer);
+        }
+    }
+    
+    // 显示游戏结束按钮
+    showGameOverButtons(buttonContainer) {
+        // 显示按钮（使用visibility而不是display）
+        if (buttonContainer) {
+            buttonContainer.style.visibility = 'visible';
+            
+            // 移动设备上，确保"再玩一次"按钮可见
+            if (this.isMobile) {
+                // 滚动到底部确保按钮可见
+                const gameOverScreen = document.getElementById('game-over-screen');
+                const restartButton = document.getElementById('restart-button');
                 
-                // 移动设备上，确保"再玩一次"按钮可见
-                if (this.isMobile) {
-                    // 滚动到底部确保按钮可见
-                    const gameOverScreen = document.getElementById('game-over-screen');
-                    const restartButton = document.getElementById('restart-button');
-                    
-                    // 如果内容过长，确保按钮可见
-                    if (gameOverScreen.scrollHeight > gameOverScreen.clientHeight) {
-                        // 将按钮放到可视范围内
-                        restartButton.scrollIntoView({ behavior: 'smooth', block: 'end' });
-                    }
+                // 如果内容过长，确保按钮可见
+                if (gameOverScreen.scrollHeight > gameOverScreen.clientHeight) {
+                    // 将按钮放到可视范围内
+                    restartButton.scrollIntoView({ behavior: 'smooth', block: 'end' });
                 }
             }
-            
-            this.canRestartAfterGameOver = true;
-            this.gameJustEnded = false;
-        }, GAME_OVER_DELAY);
+        }
+        
+        this.canRestartAfterGameOver = true;
+        this.gameJustEnded = false;
+    }
+    
+    // 判断是否需要延迟显示按钮
+    shouldDelayButtons() {
+        // 如果分数已提交，不需要延迟
+        if (this.scoreSubmitted) {
+            return false;
+        }
+        
+        // 检查是否打破最高分且能进入前20名
+        const beatsPersonalBest = this.score > this.initialHighScore;
+        const canEnterTopTwenty = this.isTopTwentyScore(this.score);
+        
+        // 只有当同时满足两个条件时才需要延迟
+        return beatsPersonalBest && canEnterTopTwenty;
     }
     
     // 检查分数是否有资格提交
