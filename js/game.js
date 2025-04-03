@@ -44,7 +44,7 @@ class FlappyBirdGame {
         this.fpsCounter.id = 'fps-counter';
         this.fpsCounter.style.position = 'fixed';
         this.fpsCounter.style.top = '10px';
-        this.fpsCounter.style.right = '10px';
+        this.fpsCounter.style.left = '10px';
         this.fpsCounter.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
         this.fpsCounter.style.color = 'white';
         this.fpsCounter.style.padding = '5px';
@@ -674,9 +674,13 @@ class FlappyBirdGame {
     update(deltaTime) {
         if (this.gameState !== GAME_STATE.PLAYING) return;
         
-        // 使用固定重力值
-        this.bird.velocity += this.GRAVITY;
-        this.bird.y += this.bird.velocity;
+        // 使用与帧率无关的物理计算（加入deltaTime因子）
+        // 限制deltaTime防止大幅度帧率波动导致的问题
+        const normalizedDelta = Math.min(deltaTime, 33) / 16.67; // 基于60FPS的标准帧时间
+        
+        // 使用归一化的deltaTime进行物理计算
+        this.bird.velocity += this.GRAVITY * normalizedDelta;
+        this.bird.y += this.bird.velocity * normalizedDelta;
         
         // 旋转小鸟（根据速度）
         if (this.bird.velocity < 0) {
@@ -707,38 +711,19 @@ class FlappyBirdGame {
             }
         }
         
-        // 优化：计算鸟的碰撞箱一次，避免重复计算
-        const birdBox = {
-            left: this.bird.x,
-            right: this.bird.x + this.bird.width,
-            top: this.bird.y,
-            bottom: this.bird.y + this.bird.height
-        };
-        
-        // 优化：仅检查在屏幕上可见且与鸟接近的管道
-        let collisionDetected = false;
-        let pipesToRemove = [];
-        let scoreIncreased = false;
-        
         // 更新管道位置
         for (let i = 0; i < this.pipes.length; i++) {
             const pipe = this.pipes[i];
             pipe.x -= this.currentPipeSpeed;
             
-            // 仅对可能发生碰撞的管道进行碰撞检测
-            if (!collisionDetected && 
-                pipe.x < birdBox.right + 5 && 
-                pipe.x + this.PIPE_WIDTH > birdBox.left - 5) {
-                
-                // 检查碰撞
-                if (this.checkCollisionOptimized(birdBox, pipe)) {
-                    collisionDetected = true;
-                    // 无需立即结束循环，继续更新其他管道
-                }
+            // 检查碰撞
+            if (this.checkCollision(this.bird, pipe)) {
+                this.gameOver();
+                return;
             }
             
             // 计分 - 只对上管道计分，确保每对管道只加1分
-            if (!scoreIncreased && !pipe.passed && pipe.x + this.PIPE_WIDTH < this.bird.x && pipe.isTop) {
+            if (!pipe.passed && pipe.x + this.PIPE_WIDTH < this.bird.x && pipe.isTop) {
                 pipe.passed = true;
                 // 同时标记对应的下管道为已通过
                 if (i + 1 < this.pipes.length) {
@@ -747,7 +732,6 @@ class FlappyBirdGame {
                 
                 this.score++;
                 this.updateScore();
-                scoreIncreased = true;
                 
                 // 增加通过管道计数
                 this.pipesPassedCount++;
@@ -793,26 +777,10 @@ class FlappyBirdGame {
                     localStorage.setItem('flappyBirdHighScore', this.highScore);
                 }
             }
-            
-            // 对于已经离开屏幕的管道，标记为待移除
-            if (pipe.x + this.PIPE_WIDTH < 0) {
-                pipesToRemove.push(i);
-            }
         }
         
-        // 如果检测到碰撞，结束游戏
-        if (collisionDetected) {
-            this.gameOver();
-            return;
-        }
-        
-        // 优化：一次性移除所有离开屏幕的管道
-        if (pipesToRemove.length > 0) {
-            // 从后往前移除，避免索引错位
-            for (let i = pipesToRemove.length - 1; i >= 0; i--) {
-                this.pipes.splice(pipesToRemove[i], 1);
-            }
-        }
+        // 移除离开屏幕的管道
+        this.pipes = this.pipes.filter(pipe => pipe.x + this.PIPE_WIDTH > 0);
         
         // 定期显示当前难度参数（与难度增加无关，仅用于信息显示）
         if (this.score > 0 && this.score % 5 === 0 && !this.scoreDisplayed) {
@@ -847,203 +815,6 @@ class FlappyBirdGame {
         } else if (this.score % 5 !== 0) {
             this.scoreDisplayed = false;
         }
-    }
-    
-    // 优化的碰撞检测函数
-    checkCollisionOptimized(birdBox, pipe) {
-        // 固定的容错空间（5像素）
-        const tolerance = 5;
-        
-        // 计算管道的碰撞箱
-        const pipeBox = {
-            left: pipe.x,
-            right: pipe.x + pipe.width,
-            top: pipe.y,
-            bottom: pipe.y + pipe.height
-        };
-        
-        return (
-            birdBox.left + tolerance < pipeBox.right &&
-            birdBox.right - tolerance > pipeBox.left &&
-            birdBox.top + tolerance < pipeBox.bottom &&
-            birdBox.bottom - tolerance > pipeBox.top
-        );
-    }
-    
-    // 计算当前难度系数的工具方法，确保所有地方使用相同的计算逻辑
-    calculateDifficultyFactor() {
-        // 基于得分的三阶段难度系统，返回0-1之间的两个值：阶段和阶段内进度
-        let stage, progress;
-        
-        if (this.score < this.SCORE_MEDIUM_DIFFICULTY) {
-            // 第一阶段：初始难度到中等难度过渡 (0-15分)
-            stage = 0; // 第一阶段
-            progress = this.score / this.SCORE_MEDIUM_DIFFICULTY; // 0-1之间的进度
-        } else if (this.score < this.SCORE_HARD_DIFFICULTY) {
-            // 第二阶段：中等难度到最终难度过渡 (15-50分)
-            stage = 1; // 第二阶段
-            progress = (this.score - this.SCORE_MEDIUM_DIFFICULTY) / (this.SCORE_HARD_DIFFICULTY - this.SCORE_MEDIUM_DIFFICULTY); // 0-1之间的进度
-        } else {
-            // 第三阶段：保持最终难度 (50分以上)
-            stage = 2; // 第三阶段
-            progress = 1.0; // 已达到最大难度
-        }
-        
-        return { stage, progress };
-    }
-    
-    // 根据难度阶段和进度计算特定参数的值
-    calculateParameterValue(initialValue, mediumValue, finalValue, difficultyInfo) {
-        const { stage, progress } = difficultyInfo;
-        
-        if (stage === 0) {
-            // 第一阶段：初始值到中等值的线性插值
-            return initialValue + progress * (mediumValue - initialValue);
-        } else if (stage === 1) {
-            // 第二阶段：中等值到最终值的线性插值
-            return mediumValue + progress * (finalValue - mediumValue);
-        } else {
-            // 第三阶段：返回最终值
-            return finalValue;
-        }
-    }
-    
-    // 增加游戏难度
-    increaseDifficulty() {
-        // 计算当前难度信息
-        const difficultyInfo = this.calculateDifficultyFactor();
-        
-        // 使用独立的参数计算管道间隙
-        this.currentPipeGap = this.calculateParameterValue(
-            this.PIPE_GAP_INITIAL, 
-            this.PIPE_GAP_MEDIUM, 
-            this.PIPE_GAP_FINAL, 
-            difficultyInfo
-        );
-        
-        // 使用独立的参数计算管道生成间隔
-        this.currentPipeSpawnInterval = this.calculateParameterValue(
-            this.PIPE_SPAWN_INTERVAL_INITIAL, 
-            this.PIPE_SPAWN_INTERVAL_MEDIUM, 
-            this.PIPE_SPAWN_INTERVAL_FINAL, 
-            difficultyInfo
-        );
-        
-        // 使用独立的参数计算管道速度
-        this.currentPipeSpeed = this.calculateParameterValue(
-            this.PIPE_SPEED_INITIAL, 
-            this.PIPE_SPEED_MEDIUM, 
-            this.PIPE_SPEED_FINAL, 
-            difficultyInfo
-        );
-        
-        // 使用独立的参数计算高度变化范围
-        const currentHeightVariation = this.calculateParameterValue(
-            this.HEIGHT_VARIATION_INITIAL, 
-            this.HEIGHT_VARIATION_MEDIUM, 
-            this.HEIGHT_VARIATION_FINAL, 
-            difficultyInfo
-        );
-        
-        // 在控制台输出当前的难度和参数
-        console.log(`--------- 难度更新 ---------`);
-        console.log(`当前分数: ${this.score}`);
-        console.log(`难度阶段: ${
-            difficultyInfo.stage === 0 ? 
-                `1-初始到中等过渡(0-${this.SCORE_MEDIUM_DIFFICULTY}分, 进度:${(difficultyInfo.progress * 100).toFixed(1)}%)` : 
-            difficultyInfo.stage === 1 ? 
-                `2-中等到最终过渡(${this.SCORE_MEDIUM_DIFFICULTY}-${this.SCORE_HARD_DIFFICULTY}分, 进度:${(difficultyInfo.progress * 100).toFixed(1)}%)` : 
-                `3-最终难度(${this.SCORE_HARD_DIFFICULTY}分以上)`
-        }`);
-        console.log(`管道间隙: ${this.currentPipeGap.toFixed(1)}像素`);
-        console.log(`管道速度: ${this.currentPipeSpeed.toFixed(1)}`);
-        console.log(`管道生成间隔: ${this.currentPipeSpawnInterval.toFixed(0)}毫秒`);
-        console.log(`高度变化范围: ±${currentHeightVariation.toFixed(0)}像素`);
-        console.log(`游戏版本: ${this.gameVersion}`);
-        console.log(`--------------------------`);
-    }
-    
-    // 生成管道
-    spawnPipe() {
-        // 确保必要的属性存在
-        if (!this.PIPE_WIDTH) this.PIPE_WIDTH = 80;
-        if (!this.GROUND_HEIGHT) this.GROUND_HEIGHT = 50;
-        
-        // 计算当前难度信息
-        let difficultyInfo;
-        if (this.gameMode === GAME_MODE.ENDLESS) {
-            difficultyInfo = this.calculateDifficultyFactor();
-        } else {
-            // 每日挑战模式使用固定难度计算
-            const progressToMax = Math.min(1, this.score / 40);
-            difficultyInfo = {
-                stage: progressToMax >= 1 ? 2 : 1,
-                progress: progressToMax >= 1 ? 1 : progressToMax
-            };
-        }
-        
-        // 根据难度调整间隙位置的随机范围
-        const minGapPos = 100; // 间隙最小高度位置
-        const maxGapPos = this.canvas.height - this.GROUND_HEIGHT - this.currentPipeGap - 100; // 间隙最大高度位置
-        
-        // 根据上一个管道的位置来限制新管道的位置范围（确保高度变化适中）
-        let newGapPosition;
-        
-        // 安全检查 - 确保高度变化参数有默认值
-        if (!this.HEIGHT_VARIATION_INITIAL) this.HEIGHT_VARIATION_INITIAL = 200;
-        if (!this.HEIGHT_VARIATION_MEDIUM) this.HEIGHT_VARIATION_MEDIUM = 400;
-        if (!this.HEIGHT_VARIATION_FINAL) this.HEIGHT_VARIATION_FINAL = 600;
-        
-        if (this.pipes.length >= 2) {
-            // 获取最后一对管道的上管道高度
-            const lastPipeHeight = this.pipes[this.pipes.length - 2].height;
-            
-            // 计算允许的高度变化范围 - 使用独立的参数
-            const heightVariation = this.calculateParameterValue(
-                this.HEIGHT_VARIATION_INITIAL, 
-                this.HEIGHT_VARIATION_MEDIUM, 
-                this.HEIGHT_VARIATION_FINAL, 
-                difficultyInfo
-            );
-            
-            // 计算新管道位置的合理范围
-            const minNewPos = Math.max(minGapPos, lastPipeHeight - heightVariation);
-            const maxNewPos = Math.min(maxGapPos, lastPipeHeight + heightVariation);
-            
-            // 生成新位置 (使用固定种子随机数或普通随机数)
-            if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
-                newGapPosition = minNewPos + this.getSeededRandom(0, 1) * (maxNewPos - minNewPos);
-            } else {
-                newGapPosition = minNewPos + Math.random() * (maxNewPos - minNewPos);
-            }
-        } else {
-            // 第一对管道，位置完全随机
-            if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
-                newGapPosition = minGapPos + this.getSeededRandom(0, 1) * (maxGapPos - minGapPos);
-            } else {
-                newGapPosition = minGapPos + Math.random() * (maxGapPos - minGapPos);
-            }
-        }
-        
-        // 上管道
-        this.pipes.push({
-            x: this.canvas.width,
-            y: 0,
-            width: this.PIPE_WIDTH,
-            height: newGapPosition,
-            passed: false,
-            isTop: true
-        });
-        
-        // 下管道
-        this.pipes.push({
-            x: this.canvas.width,
-            y: newGapPosition + this.currentPipeGap,
-            width: this.PIPE_WIDTH,
-            height: this.canvas.height - (newGapPosition + this.currentPipeGap) - this.GROUND_HEIGHT,
-            passed: false,
-            isTop: false
-        });
     }
     
     // 检查碰撞
@@ -1198,7 +969,7 @@ class FlappyBirdGame {
     
     // 游戏循环
     loop(timestamp) {
-        // 帧率计算
+        // 高精度帧率计算
         this.frames++;
         if (timestamp - this.lastFpsUpdate >= 1000) {
             this.fps = Math.round((this.frames * 1000) / (timestamp - this.lastFpsUpdate));
@@ -1206,8 +977,12 @@ class FlappyBirdGame {
             this.frames = 0;
             this.fpsCounter.textContent = `FPS: ${this.fps}`;
             
+            // 输出高帧率信息
+            if (this.fps > 60) {
+                console.log(`运行于高帧率: ${this.fps} FPS`);
+            }
             // 如果帧率低于30，输出警告
-            if (this.fps < 30) {
+            else if (this.fps < 30) {
                 console.warn(`低帧率警告: ${this.fps} FPS`);
             }
         }
@@ -1225,7 +1000,7 @@ class FlappyBirdGame {
         // 渲染游戏
         this.render();
         
-        // 请求下一帧
+        // 请求下一帧，指定使用最高可能的刷新率
         this.animationFrameId = requestAnimationFrame((t) => this.loop(t));
     }
     
@@ -1628,6 +1403,182 @@ class FlappyBirdGame {
         
         // 根据设备类型显示不同的控制提示
         this.updateControlsDisplay();
+    }
+    
+    // 增加游戏难度
+    increaseDifficulty() {
+        // 计算当前难度信息
+        const difficultyInfo = this.calculateDifficultyFactor();
+        
+        // 使用独立的参数计算管道间隙
+        this.currentPipeGap = this.calculateParameterValue(
+            this.PIPE_GAP_INITIAL, 
+            this.PIPE_GAP_MEDIUM, 
+            this.PIPE_GAP_FINAL, 
+            difficultyInfo
+        );
+        
+        // 使用独立的参数计算管道生成间隔
+        this.currentPipeSpawnInterval = this.calculateParameterValue(
+            this.PIPE_SPAWN_INTERVAL_INITIAL, 
+            this.PIPE_SPAWN_INTERVAL_MEDIUM, 
+            this.PIPE_SPAWN_INTERVAL_FINAL, 
+            difficultyInfo
+        );
+        
+        // 使用独立的参数计算管道速度
+        this.currentPipeSpeed = this.calculateParameterValue(
+            this.PIPE_SPEED_INITIAL, 
+            this.PIPE_SPEED_MEDIUM, 
+            this.PIPE_SPEED_FINAL, 
+            difficultyInfo
+        );
+        
+        // 使用独立的参数计算高度变化范围
+        const currentHeightVariation = this.calculateParameterValue(
+            this.HEIGHT_VARIATION_INITIAL, 
+            this.HEIGHT_VARIATION_MEDIUM, 
+            this.HEIGHT_VARIATION_FINAL, 
+            difficultyInfo
+        );
+        
+        // 在控制台输出当前的难度和参数
+        console.log(`--------- 难度更新 ---------`);
+        console.log(`当前分数: ${this.score}`);
+        console.log(`难度阶段: ${
+            difficultyInfo.stage === 0 ? 
+                `1-初始到中等过渡(0-${this.SCORE_MEDIUM_DIFFICULTY}分, 进度:${(difficultyInfo.progress * 100).toFixed(1)}%)` : 
+            difficultyInfo.stage === 1 ? 
+                `2-中等到最终过渡(${this.SCORE_MEDIUM_DIFFICULTY}-${this.SCORE_HARD_DIFFICULTY}分, 进度:${(difficultyInfo.progress * 100).toFixed(1)}%)` : 
+                `3-最终难度(${this.SCORE_HARD_DIFFICULTY}分以上)`
+        }`);
+        console.log(`管道间隙: ${this.currentPipeGap.toFixed(1)}像素`);
+        console.log(`管道速度: ${this.currentPipeSpeed.toFixed(1)}`);
+        console.log(`管道生成间隔: ${this.currentPipeSpawnInterval.toFixed(0)}毫秒`);
+        console.log(`高度变化范围: ±${currentHeightVariation.toFixed(0)}像素`);
+        console.log(`游戏版本: ${this.gameVersion}`);
+        console.log(`--------------------------`);
+    }
+    
+    // 计算当前难度系数的工具方法，确保所有地方使用相同的计算逻辑
+    calculateDifficultyFactor() {
+        // 基于得分的三阶段难度系统，返回0-1之间的两个值：阶段和阶段内进度
+        let stage, progress;
+        
+        if (this.score < this.SCORE_MEDIUM_DIFFICULTY) {
+            // 第一阶段：初始难度到中等难度过渡 (0-15分)
+            stage = 0; // 第一阶段
+            progress = this.score / this.SCORE_MEDIUM_DIFFICULTY; // 0-1之间的进度
+        } else if (this.score < this.SCORE_HARD_DIFFICULTY) {
+            // 第二阶段：中等难度到最终难度过渡 (15-50分)
+            stage = 1; // 第二阶段
+            progress = (this.score - this.SCORE_MEDIUM_DIFFICULTY) / (this.SCORE_HARD_DIFFICULTY - this.SCORE_MEDIUM_DIFFICULTY); // 0-1之间的进度
+        } else {
+            // 第三阶段：保持最终难度 (50分以上)
+            stage = 2; // 第三阶段
+            progress = 1.0; // 已达到最大难度
+        }
+        
+        return { stage, progress };
+    }
+    
+    // 根据难度阶段和进度计算特定参数的值
+    calculateParameterValue(initialValue, mediumValue, finalValue, difficultyInfo) {
+        const { stage, progress } = difficultyInfo;
+        
+        if (stage === 0) {
+            // 第一阶段：初始值到中等值的线性插值
+            return initialValue + progress * (mediumValue - initialValue);
+        } else if (stage === 1) {
+            // 第二阶段：中等值到最终值的线性插值
+            return mediumValue + progress * (finalValue - mediumValue);
+        } else {
+            // 第三阶段：返回最终值
+            return finalValue;
+        }
+    }
+    
+    // 生成管道
+    spawnPipe() {
+        // 确保必要的属性存在
+        if (!this.PIPE_WIDTH) this.PIPE_WIDTH = 80;
+        if (!this.GROUND_HEIGHT) this.GROUND_HEIGHT = 50;
+        
+        // 计算当前难度信息
+        let difficultyInfo;
+        if (this.gameMode === GAME_MODE.ENDLESS) {
+            difficultyInfo = this.calculateDifficultyFactor();
+        } else {
+            // 每日挑战模式使用固定难度计算
+            const progressToMax = Math.min(1, this.score / 40);
+            difficultyInfo = {
+                stage: progressToMax >= 1 ? 2 : 1,
+                progress: progressToMax >= 1 ? 1 : progressToMax
+            };
+        }
+        
+        // 根据难度调整间隙位置的随机范围
+        const minGapPos = 100; // 间隙最小高度位置
+        const maxGapPos = this.canvas.height - this.GROUND_HEIGHT - this.currentPipeGap - 100; // 间隙最大高度位置
+        
+        // 根据上一个管道的位置来限制新管道的位置范围（确保高度变化适中）
+        let newGapPosition;
+        
+        // 安全检查 - 确保高度变化参数有默认值
+        if (!this.HEIGHT_VARIATION_INITIAL) this.HEIGHT_VARIATION_INITIAL = 200;
+        if (!this.HEIGHT_VARIATION_MEDIUM) this.HEIGHT_VARIATION_MEDIUM = 400;
+        if (!this.HEIGHT_VARIATION_FINAL) this.HEIGHT_VARIATION_FINAL = 600;
+        
+        if (this.pipes.length >= 2) {
+            // 获取最后一对管道的上管道高度
+            const lastPipeHeight = this.pipes[this.pipes.length - 2].height;
+            
+            // 计算允许的高度变化范围 - 使用独立的参数
+            const heightVariation = this.calculateParameterValue(
+                this.HEIGHT_VARIATION_INITIAL, 
+                this.HEIGHT_VARIATION_MEDIUM, 
+                this.HEIGHT_VARIATION_FINAL, 
+                difficultyInfo
+            );
+            
+            // 计算新管道位置的合理范围
+            const minNewPos = Math.max(minGapPos, lastPipeHeight - heightVariation);
+            const maxNewPos = Math.min(maxGapPos, lastPipeHeight + heightVariation);
+            
+            // 生成新位置 (使用固定种子随机数或普通随机数)
+            if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
+                newGapPosition = minNewPos + this.getSeededRandom(0, 1) * (maxNewPos - minNewPos);
+            } else {
+                newGapPosition = minNewPos + Math.random() * (maxNewPos - minNewPos);
+            }
+        } else {
+            // 第一对管道，位置完全随机
+            if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
+                newGapPosition = minGapPos + this.getSeededRandom(0, 1) * (maxGapPos - minGapPos);
+            } else {
+                newGapPosition = minGapPos + Math.random() * (maxGapPos - minGapPos);
+            }
+        }
+        
+        // 上管道
+        this.pipes.push({
+            x: this.canvas.width,
+            y: 0,
+            width: this.PIPE_WIDTH,
+            height: newGapPosition,
+            passed: false,
+            isTop: true
+        });
+        
+        // 下管道
+        this.pipes.push({
+            x: this.canvas.width,
+            y: newGapPosition + this.currentPipeGap,
+            width: this.PIPE_WIDTH,
+            height: this.canvas.height - (newGapPosition + this.currentPipeGap) - this.GROUND_HEIGHT,
+            passed: false,
+            isTop: false
+        });
     }
 }
 

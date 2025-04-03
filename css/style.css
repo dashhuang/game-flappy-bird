@@ -2,6 +2,15 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    /* 添加硬件加速支持 */
+    -webkit-transform: translateZ(0);
+    -moz-transform: translateZ(0);
+    -ms-transform: translateZ(0);
+    -o-transform: translateZ(0);
+    transform: translateZ(0);
+    /* 优化高帧率动画 */
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
 }
 
 body {
@@ -35,6 +44,8 @@ body {
     position: absolute;
     top: 0;
     left: 0;
+    /* 添加硬件加速支持 */
+    will-change: transform;
 }
 
 .screen {
@@ -80,15 +91,18 @@ body {
 .restart-button-container {
     width: 100%;
     display: flex;
-    justify-content: center;
-    gap: 15px; /* 添加按钮之间的间距 */
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
     margin-top: 30px;
     position: sticky;
     bottom: 20px; /* 在移动设备上保持在底部可见 */
 }
 
 .restart-button-container button {
-    min-width: 140px; /* 确保按钮有足够的宽度 */
+    min-width: 200px;
+    width: 80%;
+    max-width: 300px;
 }
 
 h1, h2 {
@@ -493,27 +507,26 @@ button:active {
         max-height: 100%; /* 最大高度100% */
     }
     
-    /* 按钮改为水平排列并减小尺寸 */
+    /* 按钮改为垂直排列并调整尺寸 */
     .restart-button-container {
-        flex-direction: row; /* 改回水平排列 */
+        flex-direction: column;
         width: 100%;
-        justify-content: center;
-        align-items: stretch; /* 确保所有按钮高度一致 */
-        gap: 10px; /* 按钮之间的间距 */
+        align-items: center;
+        gap: 10px;
         margin-top: 15px;
     }
     
     .restart-button-container button {
-        width: auto; /* 宽度根据内容自适应 */
-        max-width: 45%; /* 最大宽度限制 */
-        white-space: nowrap; /* 防止按钮文字换行 */
-        padding: 10px 15px; /* 减小内边距 */
-        margin: 0; /* 移除垂直边距 */
-        font-size: 1rem; /* 减小字体大小 */
-        height: 44px; /* 固定按钮高度 */
-        display: flex; /* 使用flex布局 */
-        align-items: center; /* 垂直居中内容 */
-        justify-content: center; /* 水平居中内容 */
+        width: 80%;
+        max-width: 250px;
+        white-space: nowrap;
+        padding: 10px 15px;
+        margin: 0;
+        font-size: 1rem;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
     
     /* 减少各元素间的间距 */
