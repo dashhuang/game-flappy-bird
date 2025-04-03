@@ -476,9 +476,6 @@ class FlappyBirdGame {
         // 已结束，防止重复调用
         if (this.gameState === GAME_STATE.GAME_OVER) return;
         
-        // 播放游戏结束音效
-        this.playSound('hit');
-        
         // 设置游戏状态
         this.gameState = GAME_STATE.GAME_OVER;
         
