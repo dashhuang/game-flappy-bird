@@ -498,6 +498,7 @@ button:active {
         flex-direction: row; /* 改回水平排列 */
         width: 100%;
         justify-content: center;
+        align-items: stretch; /* 确保所有按钮高度一致 */
         gap: 10px; /* 按钮之间的间距 */
         margin-top: 15px;
     }
@@ -509,6 +510,10 @@ button:active {
         padding: 10px 15px; /* 减小内边距 */
         margin: 0; /* 移除垂直边距 */
         font-size: 1rem; /* 减小字体大小 */
+        height: 44px; /* 固定按钮高度 */
+        display: flex; /* 使用flex布局 */
+        align-items: center; /* 垂直居中内容 */
+        justify-content: center; /* 水平居中内容 */
     }
     
     /* 减少各元素间的间距 */
