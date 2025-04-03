@@ -30,6 +30,9 @@ const GAME_MODE = {
     DAILY_CHALLENGE: 1  // 每日挑战模式
 };
 
+// 游戏各种延迟时间常量（单位：毫秒）
+const GAME_OVER_DELAY = 500; // 游戏结束后按钮显示的延迟时间
+
 // 游戏类
 class FlappyBirdGame {
     constructor() {
@@ -542,7 +545,7 @@ class FlappyBirdGame {
             
             this.canRestartAfterGameOver = true;
             this.gameJustEnded = false;
-        }, 500);
+        }, GAME_OVER_DELAY);
     }
     
     // 检查分数是否有资格提交
