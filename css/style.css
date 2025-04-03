@@ -458,7 +458,13 @@ button:active {
 
 /* 挑战日期样式 */
 .challenge-date {
-    display: none;
+    color: #FFC107;
+    font-weight: bold;
+    margin: 5px 0;
+}
+
+/* 单独调整日期文字颜色 */
+#challenge-date-display, #victory-date-display {
     color: #FFC107;
     font-weight: bold;
 }
@@ -471,42 +477,63 @@ button:active {
         overflow-y: auto;
         max-height: 100%;
         justify-content: flex-start;
+        position: fixed; /* 防止内容溢出引起页面滚动 */
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
     }
     
     /* 进一步减少内容之间的间距 */
     .game-over-content, .victory-content {
         padding: 5px;
         margin-top: 10px;
+        margin-bottom: 20px; /* 确保底部有足够空间 */
+        height: auto; /* 高度自适应 */
+        max-height: 100%; /* 最大高度100% */
     }
     
-    /* 解决按钮文字断行问题 */
+    /* 按钮改为水平排列并减小尺寸 */
     .restart-button-container {
-        flex-direction: column;
+        flex-direction: row; /* 改回水平排列 */
         width: 100%;
+        justify-content: center;
+        gap: 10px; /* 按钮之间的间距 */
+        margin-top: 15px;
     }
     
     .restart-button-container button {
-        width: 70%;
+        width: auto; /* 宽度根据内容自适应 */
+        max-width: 45%; /* 最大宽度限制 */
         white-space: nowrap; /* 防止按钮文字换行 */
-        padding: 15px 10px;
-        margin: 8px 0;
+        padding: 10px 15px; /* 减小内边距 */
+        margin: 0; /* 移除垂直边距 */
+        font-size: 1rem; /* 减小字体大小 */
     }
     
-    /* 优化游戏结束界面上的文字大小 */
+    /* 减少各元素间的间距 */
     #game-over-screen h2, #victory-screen h2 {
-        font-size: 2rem;
-        margin-bottom: 10px;
+        font-size: 1.8rem;
+        margin-bottom: 8px;
+        margin-top: 8px;
     }
     
     #game-over-screen p, #victory-screen p {
-        font-size: 1rem;
-        margin-bottom: 8px;
+        font-size: 0.95rem;
+        margin-bottom: 5px;
+        margin-top: 0;
+    }
+    
+    /* 整体减少内容的上下间距 */
+    .game-over-content > *, .victory-content > * {
+        margin-top: 3px;
+        margin-bottom: 3px;
     }
     
     /* 减少输入框容器和排行榜容器的内边距 */
     #name-input-container, #leaderboard-container {
         padding: 5px;
-        margin-top: 10px;
+        margin-top: 8px;
     }
     
     /* 优化输入框样式 */
@@ -531,9 +558,9 @@ button:active {
     
     /* 优化排行榜样式 */
     #leaderboard-container {
-        max-height: 25vh;
+        max-height: 22vh;
         padding: 5px;
-        margin-bottom: 10px;
+        margin-bottom: 8px;
     }
     
     #leaderboard-list table {
@@ -543,6 +570,17 @@ button:active {
     #leaderboard-list th, 
     #leaderboard-list td {
         padding: 5px 8px;
+    }
+    
+    /* 解决移动设备上的滚动问题 */
+    .game-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        height: 100%;
     }
 }
 
@@ -563,13 +601,17 @@ button:active {
     }
 }
 
-/* 解决iOS Safari 100vh问题 */
+/* 修复body和html的滚动问题，但允许游戏屏幕内滚动 */
+html, body {
+    overflow: hidden; /* 防止整个页面滚动 */
+    width: 100%;
+    height: 100%;
+}
+
+/* 修复iOS中的特殊滚动问题 */
 @supports (-webkit-touch-callout: none) {
-    .screen {
-        height: -webkit-fill-available;
-    }
-    
-    .game-container {
+    body {
+        /* 解决iOS上100vh问题 */
         height: -webkit-fill-available;
     }
 }
