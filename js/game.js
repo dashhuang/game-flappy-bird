@@ -1255,12 +1255,6 @@ class FlappyBirdGame {
                 this.ctx.arc(x + size * 2.4, y - size * 0.1, size * 0.75, 0, Math.PI * 2);
                 this.ctx.arc(x + size * 1.3, y + size * 0.3, size * 0.9, 0, Math.PI * 2);
                 this.ctx.fill();
-                
-                // 添加一点阴影效果
-                this.ctx.fillStyle = 'rgba(220, 220, 220, 0.5)';
-                this.ctx.beginPath();
-                this.ctx.arc(x + size * 1.2, y + size * 0.5, size * 0.4, 0, Math.PI * 2);
-                this.ctx.fill();
                 break;
                 
             case 2: // 聚集云
@@ -1271,12 +1265,6 @@ class FlappyBirdGame {
                 this.ctx.arc(x - size * 0.2, y - size * 0.4, size * 0.7, 0, Math.PI * 2);
                 this.ctx.arc(x + size * 0.5, y + size * 0.3, size, 0, Math.PI * 2);
                 this.ctx.arc(x - size * 0.4, y + size * 0.25, size * 0.8, 0, Math.PI * 2);
-                this.ctx.fill();
-                
-                // 添加明亮高光
-                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-                this.ctx.beginPath();
-                this.ctx.arc(x + size * 0.2, y - size * 0.2, size * 0.5, 0, Math.PI * 2);
                 this.ctx.fill();
                 break;
         }
