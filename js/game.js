@@ -29,13 +29,13 @@ const HEIGHT_VARIATION_INITIAL = 200;  // 初始高度变化幅度（像素）
 const PIPE_SPEED_MEDIUM = 3.0;           // 中等难度管道速度
 const PIPE_SPAWN_INTERVAL_MEDIUM = 1600; // 中等难度管道生成间隔 - 更平滑的过渡
 const PIPE_GAP_MEDIUM = 180;             // 中等难度管道间隙 - 更友好的设计
-const HEIGHT_VARIATION_MEDIUM = 300;     // 中等难度高度变化幅度（像素）
+const HEIGHT_VARIATION_MEDIUM = 400;     // 中等难度高度变化幅度（像素）
 
 // 最终难度参数 (100分以上)
 const PIPE_SPEED_FINAL = 3.0;           // 最终管道速度 - 保持稳定挑战性
 const PIPE_SPAWN_INTERVAL_FINAL = 1400; // 最终管道生成间隔 - 平衡的难度
-const PIPE_GAP_FINAL = 140;             // 最终管道间隙 - 有挑战但不过于困难
-const HEIGHT_VARIATION_FINAL = 500;     // 最终高度变化幅度（像素）- 增加垂直变化挑战性
+const PIPE_GAP_FINAL = 120;             // 最终管道间隙 - 有挑战但不过于困难
+const HEIGHT_VARIATION_FINAL = 600;     // 最终高度变化幅度（像素）- 增加垂直变化挑战性
 
 // 难度控制分数阈值
 const SCORE_MEDIUM_DIFFICULTY = 15;  // 中等难度分数阈值
@@ -104,6 +104,7 @@ class FlappyBirdGame {
         this.leaderboardData = [];
         this.scoreThreshold = 2; // 更新排行榜的分数阈值
         this.leaderboardUpdated = false; // 跟踪本局游戏是否已更新过排行榜
+        this.scoreSubmitted = false; // 跟踪分数是否已被提交
         
         // 根据设备类型显示不同的控制提示
         this.updateControlsDisplay();
@@ -332,6 +333,12 @@ class FlappyBirdGame {
     
     // 检查分数是否有资格提交
     checkIfScoreQualifies() {
+        // 如果分数已经提交过，不再显示提交界面
+        if (this.scoreSubmitted) {
+            document.getElementById('name-input-container').style.display = 'none';
+            return;
+        }
+        
         // 首先检查是否严格超过了游戏开始时的最高分（而非当前最高分）
         const beatsPersonalBest = this.score > this.initialHighScore;
         
@@ -412,6 +419,8 @@ class FlappyBirdGame {
         
         // 重置排行榜检查点状态
         this.leaderboardUpdated = false;
+        // 重置分数提交状态
+        this.scoreSubmitted = false;
         
         // 记录当前的最高分
         this.initialHighScore = this.highScore;
@@ -922,6 +931,16 @@ class FlappyBirdGame {
             return;
         }
         
+        // 防止重复提交
+        const submitButton = document.getElementById('submit-score-button');
+        if (submitButton.disabled) {
+            return; // 如果按钮已被禁用，说明正在提交中，直接返回
+        }
+        
+        // 禁用按钮并更改文本
+        submitButton.disabled = true;
+        submitButton.textContent = '提交中...';
+        
         try {
             const response = await fetch('/api/submit-score', {
                 method: 'POST',
@@ -935,6 +954,8 @@ class FlappyBirdGame {
             });
             
             if (response.ok) {
+                // 添加提交成功标记，防止再次提交
+                this.scoreSubmitted = true;
                 document.getElementById('name-input-container').style.display = 'none';
                 
                 // 重新获取并显示更新后的排行榜数据
@@ -946,10 +967,16 @@ class FlappyBirdGame {
                 }
             } else {
                 alert('提交分数失败，请重试');
+                // 恢复按钮状态，允许重试
+                submitButton.disabled = false;
+                submitButton.textContent = '提交分数';
             }
         } catch (error) {
             console.error('提交分数错误:', error);
             alert('连接服务器失败');
+            // 恢复按钮状态，允许重试
+            submitButton.disabled = false;
+            submitButton.textContent = '提交分数';
         }
     }
 }

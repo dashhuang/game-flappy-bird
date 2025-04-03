@@ -33,6 +33,9 @@ export default async function handler(req, res) {
         if (currentScore > highestScore) {
           highestScore = currentScore;
           highestScoreId = id;
+        } else if (currentScore === highestScore && highestScoreId === null) {
+          // 如果分数相同且尚未设置ID，则保留已有的记录ID
+          highestScoreId = id;
         }
       }
     }
@@ -59,9 +62,9 @@ export default async function handler(req, res) {
         value: newId
       }]);
     } else {
-      // 已有同名记录，判断新分数是否为最高分
-      if (parseInt(score) >= highestScore) {
-        // 新分数是最高分，创建新记录
+      // 已有同名记录，判断新分数是否严格大于已有最高分
+      if (parseInt(score) > highestScore) {
+        // 新分数严格大于最高分，创建新记录
         const newId = Date.now().toString();
         const timestamp = Date.now();
         
@@ -82,6 +85,7 @@ export default async function handler(req, res) {
         // 将新ID添加到需要保留的列表中
         highestScoreId = newId;
       }
+      // 如果新分数小于等于已有最高分，不创建新记录，保留现有最高分记录
       
       // 删除所有同名用户中，不是最高分的记录
       for (const id of sameNameIds) {
