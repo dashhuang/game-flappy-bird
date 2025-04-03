@@ -25,7 +25,12 @@
             <h1>Flappy Bird</h1>
             <p id="desktop-controls">点击屏幕或按空格键使小鸟向上飞</p>
             <p id="mobile-controls" style="display: none;">点击屏幕使小鸟向上飞</p>
-            <button id="start-button">开始游戏</button>
+            <div class="game-modes">
+                <h3>选择游戏模式</h3>
+                <button id="endless-mode-button" class="mode-button">无尽模式</button>
+                <button id="daily-challenge-button" class="mode-button">每日挑战</button>
+                <p id="daily-description" class="mode-description">每日固定关卡，50个管道，达到50分通关！</p>
+            </div>
         </div>
         <div id="game-over-screen" class="screen">
             <div class="game-over-content">
@@ -47,6 +52,7 @@
                 
                 <div class="restart-button-container">
                     <button id="restart-button">再玩一次</button>
+                    <button id="back-to-menu-button-gameover">返回主菜单</button>
                 </div>
             </div>
         </div>
@@ -55,6 +61,17 @@
         <div id="update-notification" class="notification" style="display: none;">
             <p>游戏已更新！新的设置将在下一局游戏生效</p>
             <button id="close-notification">✕</button>
+        </div>
+        
+        <!-- 胜利界面 -->
+        <div id="victory-screen" class="screen">
+            <div class="victory-content">
+                <h2 class="victory-title">挑战成功！</h2>
+                <p>恭喜你完成了今日挑战！</p>
+                <p>总分: <span id="victory-score">0</span></p>
+                <button id="victory-restart-button">再玩一次</button>
+                <button id="back-to-menu-button">返回主菜单</button>
+            </div>
         </div>
         
         <div id="score-display">0</div>

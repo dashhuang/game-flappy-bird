@@ -20,7 +20,14 @@ const GAME_STATE = {
     MENU: 0,
     PLAYING: 1,
     GAME_OVER: 2,
-    LOADING: 3  // 加载状态
+    LOADING: 3,  // 加载状态
+    VICTORY: 4   // 胜利状态（挑战模式完成）
+};
+
+// 游戏模式
+const GAME_MODE = {
+    ENDLESS: 0,  // 无尽模式
+    DAILY_CHALLENGE: 1  // 每日挑战模式
 };
 
 // 游戏类
@@ -31,6 +38,14 @@ class FlappyBirdGame {
         this.isConfigLoaded = false;
         this.configLastChecked = 0;
         this.configCheckInterval = 60000; // 每分钟检查一次配置更新
+        
+        // 游戏模式
+        this.gameMode = GAME_MODE.ENDLESS;
+        
+        // 每日挑战特定参数
+        this.dailyChallengeSeed = this.generateDailySeed();
+        this.maxDailyChallengePipes = 50;
+        this.pipeCount = 0;
         
         // 初始化默认配置（用于回退）
         this.initDefaultConfig();
@@ -93,10 +108,14 @@ class FlappyBirdGame {
         document.addEventListener('keydown', (e) => {
             if (e.code === 'Space') {
                 if (this.gameState === GAME_STATE.MENU) {
-                    this.startGame();
+                    // 移除直接开始，改为等待用户选择模式
+                    // this.startGame();
                 } else if (this.gameState === GAME_STATE.PLAYING) {
                     this.flapBird();
                 } else if (this.gameState === GAME_STATE.GAME_OVER && this.canRestartAfterGameOver) {
+                    this.resetGame();
+                    this.startGame();
+                } else if (this.gameState === GAME_STATE.VICTORY) {
                     this.resetGame();
                     this.startGame();
                 }
@@ -106,17 +125,32 @@ class FlappyBirdGame {
         // 鼠标/触摸事件
         this.canvas.addEventListener('click', () => {
             if (this.gameState === GAME_STATE.MENU) {
-                this.startGame();
+                // 移除直接开始，改为等待用户选择模式
+                // this.startGame();
             } else if (this.gameState === GAME_STATE.PLAYING) {
                 this.flapBird();
             } else if (this.gameState === GAME_STATE.GAME_OVER && this.canRestartAfterGameOver) {
                 this.resetGame();
                 this.startGame();
+            } else if (this.gameState === GAME_STATE.VICTORY) {
+                this.resetGame();
+                this.startGame();
             }
         });
         
-        // 开始按钮
-        document.getElementById('start-button').addEventListener('click', () => {
+        // 无尽模式按钮
+        document.getElementById('endless-mode-button').addEventListener('click', () => {
+            this.gameMode = GAME_MODE.ENDLESS;
+            this.startGame();
+        });
+        
+        // 每日挑战按钮
+        document.getElementById('daily-challenge-button').addEventListener('click', () => {
+            this.gameMode = GAME_MODE.DAILY_CHALLENGE;
+            // 重置种子以确保每次开始挑战时使用相同的随机序列
+            this.resetDailyChallengeSeed();
+            // 重置管道计数
+            this.pipeCount = 0;
             this.startGame();
         });
         
@@ -127,6 +161,24 @@ class FlappyBirdGame {
                 this.resetGame();
                 this.startGame();
             }
+        });
+        
+        // 胜利界面的重新开始按钮
+        document.getElementById('victory-restart-button').addEventListener('click', () => {
+            this.resetGame();
+            this.startGame();
+        });
+        
+        // 胜利界面返回主菜单按钮
+        document.getElementById('back-to-menu-button').addEventListener('click', () => {
+            this.resetGame();
+            this.showMainMenu();
+        });
+        
+        // 游戏结束界面返回主菜单按钮
+        document.getElementById('back-to-menu-button-gameover').addEventListener('click', () => {
+            this.resetGame();
+            this.showMainMenu();
         });
         
         // 提交分数按钮
@@ -231,10 +283,84 @@ class FlappyBirdGame {
         this.gameState = GAME_STATE.PLAYING;
         this.startScreen.style.display = 'none';
         this.gameOverScreen.style.display = 'none';
+        document.getElementById('victory-screen').style.display = 'none';
         this.scoreDisplay.style.display = 'block';
         
         // 记录游戏开始时的最高分
         this.initialHighScore = this.highScore;
+        
+        // 根据游戏模式设置难度
+        if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
+            // 每日挑战从中等难度开始
+            this.startDailyChallenge();
+        }
+    }
+    
+    // 设置每日挑战的初始状态
+    startDailyChallenge() {
+        // 从中等难度开始
+        const mediumDifficultyFactor = {
+            stage: 1,
+            progress: 0
+        };
+        
+        // 设置难度参数为中等难度
+        this.currentPipeGap = this.PIPE_GAP_MEDIUM;
+        this.currentPipeSpawnInterval = this.PIPE_SPAWN_INTERVAL_MEDIUM;
+        this.currentPipeSpeed = this.PIPE_SPEED_MEDIUM;
+    }
+    
+    // 生成基于日期的种子
+    generateDailySeed() {
+        const today = new Date();
+        return today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+    }
+    
+    // 重置每日挑战的随机种子
+    resetDailyChallengeSeed() {
+        this.dailyChallengeSeed = this.generateDailySeed();
+        this.seededRandom = this.mulberry32(this.dailyChallengeSeed);
+    }
+    
+    // 伪随机数生成器 (Mulberry32算法)
+    mulberry32(seed) {
+        return function() {
+            let t = seed += 0x6D2B79F5;
+            t = Math.imul(t ^ t >>> 15, t | 1);
+            t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+            return ((t ^ t >>> 14) >>> 0) / 4294967296;
+        };
+    }
+    
+    // 使用种子生成随机数
+    getSeededRandom(min, max) {
+        if (!this.seededRandom) {
+            this.seededRandom = this.mulberry32(this.dailyChallengeSeed);
+        }
+        return min + this.seededRandom() * (max - min);
+    }
+    
+    // 显示主菜单
+    showMainMenu() {
+        this.gameState = GAME_STATE.MENU;
+        this.startScreen.style.display = 'flex';
+        this.gameOverScreen.style.display = 'none';
+        document.getElementById('victory-screen').style.display = 'none';
+        this.scoreDisplay.style.display = 'none';
+    }
+    
+    // 显示胜利界面
+    showVictoryScreen() {
+        this.gameState = GAME_STATE.VICTORY;
+        document.getElementById('victory-screen').style.display = 'flex';
+        document.getElementById('victory-score').textContent = this.score;
+        this.gameOverScreen.style.display = 'none';
+        
+        // 更新最高分
+        if (this.score > this.highScore) {
+            this.highScore = this.score;
+            localStorage.setItem('flappyBirdHighScore', this.highScore);
+        }
     }
     
     // 游戏结束
@@ -368,6 +494,15 @@ class FlappyBirdGame {
         this.currentPipeSpawnInterval = this.PIPE_SPAWN_INTERVAL_INITIAL;
         this.currentPipeSpeed = this.PIPE_SPEED_INITIAL;
         
+        // 如果是每日挑战模式，重置管道计数并设置中等难度
+        if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
+            this.pipeCount = 0;
+            this.resetDailyChallengeSeed();
+            this.currentPipeGap = this.PIPE_GAP_MEDIUM;
+            this.currentPipeSpawnInterval = this.PIPE_SPAWN_INTERVAL_MEDIUM;
+            this.currentPipeSpeed = this.PIPE_SPEED_MEDIUM;
+        }
+        
         // 重置排行榜检查点状态
         this.leaderboardUpdated = false;
         // 重置分数提交状态
@@ -399,29 +534,32 @@ class FlappyBirdGame {
         if (this.bird.velocity < 0) {
             this.bird.rotation = -20; // 向上飞行
         } else {
-            this.bird.rotation = Math.min(90, this.bird.rotation + 2); // 逐渐向下转
+            this.bird.rotation = Math.min(90, this.bird.velocity * 2); // 向下坠落
         }
         
-        // 检查地面碰撞
-        if (this.bird.y + this.bird.height > this.canvas.height - this.GROUND_HEIGHT) {
-            this.bird.y = this.canvas.height - this.GROUND_HEIGHT - this.bird.height;
+        // 碰到天花板或地面时结束游戏
+        if (this.bird.y < 0 || this.bird.y + this.bird.height > this.canvas.height - this.GROUND_HEIGHT) {
             this.gameOver();
-        }
-        
-        // 检查天花板碰撞
-        if (this.bird.y < 0) {
-            this.bird.y = 0;
-            this.bird.velocity = 0;
+            return;
         }
         
         // 生成管道
-        this.lastPipeSpawn += deltaTime;
-        if (this.lastPipeSpawn > this.currentPipeSpawnInterval) {
-            this.spawnPipe();
-            this.lastPipeSpawn = 0;
+        if (Date.now() - this.lastPipeSpawn > this.currentPipeSpawnInterval) {
+            // 每日挑战模式下，检查是否达到管道上限
+            if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
+                if (this.pipeCount < this.maxDailyChallengePipes) {
+                    this.spawnPipe();
+                    this.pipeCount++;
+                    this.lastPipeSpawn = Date.now();
+                }
+            } else {
+                // 无尽模式，正常生成管道
+                this.spawnPipe();
+                this.lastPipeSpawn = Date.now();
+            }
         }
         
-        // 更新管道位置并检查碰撞
+        // 更新管道位置
         for (let i = 0; i < this.pipes.length; i++) {
             const pipe = this.pipes[i];
             pipe.x -= this.currentPipeSpeed;
@@ -448,10 +586,28 @@ class FlappyBirdGame {
                 // 在控制台输出当前通过的管道数
                 console.log(`通过管道对数: ${this.pipesPassedCount}, 当前分数: ${this.score}`);
                 
-                // 每SCORE_DIFFICULTY_STEP分增加一次难度
-                if (this.score % this.SCORE_DIFFICULTY_STEP === 0) {
-                    console.log(`达到难度增加点！(每${this.SCORE_DIFFICULTY_STEP}分)`);
-                    this.increaseDifficulty();
+                // 每日挑战模式下，检查是否完成挑战
+                if (this.gameMode === GAME_MODE.DAILY_CHALLENGE && this.score >= 50) {
+                    this.showVictoryScreen();
+                    return;
+                }
+                
+                // 每日挑战模式下的难度调整
+                if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
+                    // 40分后达到最高难度
+                    const progressToMax = Math.min(1, this.score / 40);
+                    
+                    // 根据进度计算难度
+                    this.currentPipeGap = this.PIPE_GAP_MEDIUM - progressToMax * (this.PIPE_GAP_MEDIUM - this.PIPE_GAP_FINAL);
+                    this.currentPipeSpeed = this.PIPE_SPEED_MEDIUM + progressToMax * (this.PIPE_SPEED_FINAL - this.PIPE_SPEED_MEDIUM);
+                    this.currentPipeSpawnInterval = this.PIPE_SPAWN_INTERVAL_MEDIUM - progressToMax * (this.PIPE_SPAWN_INTERVAL_MEDIUM - this.PIPE_SPAWN_INTERVAL_FINAL);
+                } else {
+                    // 无尽模式下的难度调整
+                    // 每SCORE_DIFFICULTY_STEP分增加一次难度
+                    if (this.score % this.SCORE_DIFFICULTY_STEP === 0) {
+                        console.log(`达到难度增加点！(每${this.SCORE_DIFFICULTY_STEP}分)`);
+                        this.increaseDifficulty();
+                    }
                 }
                 
                 // 检查是否达到分数阈值且尚未更新过排行榜
@@ -607,7 +763,17 @@ class FlappyBirdGame {
         if (!this.GROUND_HEIGHT) this.GROUND_HEIGHT = 50;
         
         // 计算当前难度信息
-        const difficultyInfo = this.calculateDifficultyFactor();
+        let difficultyInfo;
+        if (this.gameMode === GAME_MODE.ENDLESS) {
+            difficultyInfo = this.calculateDifficultyFactor();
+        } else {
+            // 每日挑战模式使用固定难度计算
+            const progressToMax = Math.min(1, this.score / 40);
+            difficultyInfo = {
+                stage: progressToMax >= 1 ? 2 : 1,
+                progress: progressToMax >= 1 ? 1 : progressToMax
+            };
+        }
         
         // 根据难度调整间隙位置的随机范围
         const minGapPos = 100; // 间隙最小高度位置
@@ -637,11 +803,19 @@ class FlappyBirdGame {
             const minNewPos = Math.max(minGapPos, lastPipeHeight - heightVariation);
             const maxNewPos = Math.min(maxGapPos, lastPipeHeight + heightVariation);
             
-            // 生成新位置
-            newGapPosition = minNewPos + Math.random() * (maxNewPos - minNewPos);
+            // 生成新位置 (使用固定种子随机数或普通随机数)
+            if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
+                newGapPosition = minNewPos + this.getSeededRandom(0, 1) * (maxNewPos - minNewPos);
+            } else {
+                newGapPosition = minNewPos + Math.random() * (maxNewPos - minNewPos);
+            }
         } else {
             // 第一对管道，位置完全随机
-            newGapPosition = minGapPos + Math.random() * (maxGapPos - minGapPos);
+            if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
+                newGapPosition = minGapPos + this.getSeededRandom(0, 1) * (maxGapPos - minGapPos);
+            } else {
+                newGapPosition = minGapPos + Math.random() * (maxGapPos - minGapPos);
+            }
         }
         
         // 上管道

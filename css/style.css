@@ -76,9 +76,14 @@ body {
     width: 100%;
     display: flex;
     justify-content: center;
+    gap: 15px; /* 添加按钮之间的间距 */
     margin-top: 30px;
     position: sticky;
     bottom: 20px; /* 在移动设备上保持在底部可见 */
+}
+
+.restart-button-container button {
+    min-width: 140px; /* 确保按钮有足够的宽度 */
 }
 
 h1, h2 {
@@ -356,4 +361,92 @@ button:active {
     font-size: 18px;
     cursor: pointer;
     padding: 0 5px;
+}
+
+/* 游戏模式选择样式 */
+.game-modes {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 20px;
+    width: 100%;
+    max-width: 400px;
+}
+
+.mode-button {
+    width: 80%;
+    margin: 10px 0;
+    background-color: #4CAF50;
+    color: white;
+    padding: 15px;
+    font-size: 18px;
+    font-weight: bold;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+}
+
+.mode-button:hover {
+    transform: scale(1.05);
+    background-color: #45a049;
+}
+
+#endless-mode-button {
+    background-color: #2196F3;
+}
+
+#endless-mode-button:hover {
+    background-color: #0b7dda;
+}
+
+#daily-challenge-button {
+    background-color: #ff9800;
+}
+
+#daily-challenge-button:hover {
+    background-color: #e68a00;
+}
+
+.mode-description {
+    font-size: 14px;
+    color: #FFC107;
+    margin-top: 5px;
+    text-align: center;
+}
+
+/* 胜利界面样式 */
+#victory-screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    text-align: center;
+    z-index: 10;
+}
+
+.victory-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+}
+
+.victory-title {
+    color: #FFD700;
+    font-size: 3rem;
+    margin-bottom: 20px;
+    text-shadow: 0 0 10px #FFD700, 0 0 20px #FFD700;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
 }
