@@ -2,9 +2,7 @@
 
 一个使用JavaScript和HTML5 Canvas开发的现代Flappy Bird游戏，具有渐进式难度系统、两种游戏模式（无尽模式和每日挑战）以及全球排行榜功能。
 
-[在线试玩](https://game-flappy-bird-rho.vercel.app/)
-
-![Flappy Bird 游戏截图](https://github.com/dashhuang/game-flappy-bird/raw/main/screenshots/gameplay.png)
+[在线试玩](https://flappybird.huang.co)
 
 ## 游戏特性
 
@@ -16,6 +14,8 @@
 - ☁️ 动态生成的云朵背景效果
 - 🏆 全球排行榜，记录和展示最高分 (区分无尽模式和每日挑战)
 - 🏅 **新增：每日挑战模式** - 每天都有固定种子生成的关卡，挑战50个管道！
+- 🔄 **新增：实时排行榜更新** - 提交分数后显示排行榜更新动画
+- 🔗 **新增：社交媒体分享预览** - 在Telegram、WhatsApp等平台分享链接时显示游戏预览
 
 ### 游戏机制
 - 🔄 精心设计的三阶段难度系统 (适用于无尽模式)
