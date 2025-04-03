@@ -45,6 +45,11 @@ class FlappyBirdGame {
         this.lastFpsUpdate = 0;
         this.fps = 0;
         
+        // 高帧率支持 - 新增
+        this.targetFPS = 0; // 0表示不限制
+        this.physicsDeltaTime = 1000 / 60; // 基于60FPS的物理更新时间
+        this.useFrameRateIndependentPhysics = true; // 使用帧率独立的物理计算
+        
         // 游戏模式
         this.gameMode = GAME_MODE.ENDLESS;
         
@@ -234,6 +239,14 @@ class FlappyBirdGame {
         window.addEventListener('orientationchange', () => {
             setTimeout(() => this.handleResize(), 100);
         });
+        
+        // 帧率控制按钮
+        const toggleFpsLimitBtn = document.getElementById('toggle-fps-limit');
+        if (toggleFpsLimitBtn) {
+            toggleFpsLimitBtn.addEventListener('click', () => {
+                this.toggleFrameRateLimit();
+            });
+        }
     }
     
     // 处理窗口大小改变
@@ -316,6 +329,16 @@ class FlappyBirdGame {
         
         // 记录游戏开始时的最高分 - 基于当前模式
         this.initialHighScore = this.getCurrentModeHighScore();
+        
+        // 确保提交状态重置
+        this.scoreSubmitted = false;
+        
+        // 重置提交按钮状态
+        const submitButton = document.getElementById('submit-score-button');
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = '提交分数';
+        }
         
         // 根据游戏模式设置难度
         if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
@@ -520,6 +543,13 @@ class FlappyBirdGame {
     
     // 检查分数是否有资格提交
     checkIfScoreQualifies() {
+        // 重置提交按钮状态，防止状态残留
+        const submitButton = document.getElementById('submit-score-button');
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = '提交分数';
+        }
+        
         // 如果分数已经提交过，不再显示提交界面
         if (this.scoreSubmitted) {
             document.getElementById('name-input-container').style.display = 'none';
@@ -645,6 +675,13 @@ class FlappyBirdGame {
         // 重置分数提交状态
         this.scoreSubmitted = false;
         
+        // 重置提交按钮状态 - 修复Bug
+        const submitButton = document.getElementById('submit-score-button');
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = '提交分数';
+        }
+        
         // 记录当前的最高分
         this.initialHighScore = this.getCurrentModeHighScore();
         
@@ -653,19 +690,33 @@ class FlappyBirdGame {
         this.pipeColors = this.generatePipeColors();
     }
     
-    // 小鸟扇动翅膀
+    // 小鸟跳跃
     flapBird() {
-        this.bird.velocity = this.FLAP_POWER;
-        this.bird.rotation = -20; // 向上旋转
+        if (this.gameState === GAME_STATE.PLAYING) {
+            // 使用帧率独立的跳跃力量
+            if (this.useFrameRateIndependentPhysics) {
+                this.bird.velocity = this.FLAP_POWER;
+            } else {
+                this.bird.velocity = this.FLAP_POWER;
+            }
+        } else if (this.gameState === GAME_STATE.MENU) {
+            this.startGame();
+        } else if (this.gameState === GAME_STATE.GAME_OVER && this.canRestartAfterGameOver && !this.gameJustEnded) {
+            this.resetGame();
+            this.startGame();
+        }
     }
     
-    // 更新游戏状态
+    // 更新游戏状态 - 修改为基于时间的物理计算
     update(deltaTime) {
         if (this.gameState !== GAME_STATE.PLAYING) return;
         
-        // 使用固定重力值
-        this.bird.velocity += this.GRAVITY;
-        this.bird.y += this.bird.velocity;
+        // 转换为帧率独立的物理计算
+        const dt = this.useFrameRateIndependentPhysics ? deltaTime / this.physicsDeltaTime : 1;
+        
+        // 使用时间步长来更新物理
+        this.bird.velocity += this.GRAVITY * dt;
+        this.bird.y += this.bird.velocity * dt;
         
         // 旋转小鸟（根据速度）
         if (this.bird.velocity < 0) {
@@ -697,34 +748,25 @@ class FlappyBirdGame {
         }
         
         // 更新管道位置
-        for (let i = 0; i < this.pipes.length; i++) {
-            const pipe = this.pipes[i];
-            pipe.x -= this.currentPipeSpeed;
+        for (const pipe of this.pipes) {
+            // 使用帧率独立的速度更新
+            pipe.x -= this.currentPipeSpeed * dt;
             
-            // 检查碰撞
+            // 碰撞检测
             if (this.checkCollision(this.bird, pipe)) {
                 this.gameOver();
+                return;
             }
             
-            // 计分 - 只对上管道计分，确保每对管道只加1分
-            if (!pipe.passed && pipe.x + this.PIPE_WIDTH < this.bird.x && pipe.isTop) {
+            // 检查是否通过管道
+            if (!pipe.passed && pipe.x + this.PIPE_WIDTH < this.bird.x) {
                 pipe.passed = true;
-                // 同时标记对应的下管道为已通过
-                if (i + 1 < this.pipes.length) {
-                    this.pipes[i + 1].passed = true;
-                }
-                
                 this.score++;
                 this.updateScore();
-                
-                // 增加通过管道计数
                 this.pipesPassedCount++;
                 
-                // 在控制台输出当前通过的管道数
-                console.log(`通过管道对数: ${this.pipesPassedCount}, 当前分数: ${this.score}`);
-                
-                // 每日挑战模式下，检查是否完成挑战
-                if (this.gameMode === GAME_MODE.DAILY_CHALLENGE && this.score >= 50) {
+                // 每日挑战模式下的通关判断
+                if (this.gameMode === GAME_MODE.DAILY_CHALLENGE && this.pipeCount >= this.maxDailyChallengePipes && this.pipesPassedCount >= this.maxDailyChallengePipes) {
                     this.showVictoryScreen();
                     return;
                 }
@@ -765,39 +807,6 @@ class FlappyBirdGame {
         
         // 移除离开屏幕的管道
         this.pipes = this.pipes.filter(pipe => pipe.x + this.PIPE_WIDTH > 0);
-        
-        // 定期显示当前难度参数（与难度增加无关，仅用于信息显示）
-        if (this.score > 0 && this.score % 5 === 0 && !this.scoreDisplayed) {
-            this.scoreDisplayed = true;
-            
-            // 计算当前难度信息
-            const difficultyInfo = this.calculateDifficultyFactor();
-            
-            // 计算高度变化范围
-            const currentHeightVariation = this.calculateParameterValue(
-                this.HEIGHT_VARIATION_INITIAL, 
-                this.HEIGHT_VARIATION_MEDIUM, 
-                this.HEIGHT_VARIATION_FINAL, 
-                difficultyInfo
-            );
-            
-            console.log(`--------- 当前状态 (得分: ${this.score}) ---------`);
-            console.log(`难度阶段: ${
-                difficultyInfo.stage === 0 ? 
-                    `1-初始到中等过渡(0-${this.SCORE_MEDIUM_DIFFICULTY}分, 进度:${(difficultyInfo.progress * 100).toFixed(1)}%)` : 
-                difficultyInfo.stage === 1 ? 
-                    `2-中等到最终过渡(${this.SCORE_MEDIUM_DIFFICULTY}-${this.SCORE_HARD_DIFFICULTY}分, 进度:${(difficultyInfo.progress * 100).toFixed(1)}%)` : 
-                    `3-最终难度(${this.SCORE_HARD_DIFFICULTY}分以上)`
-            }`);
-            console.log(`管道间隙: ${this.currentPipeGap.toFixed(1)}像素`);
-            console.log(`管道速度: ${this.currentPipeSpeed.toFixed(1)}`);
-            console.log(`管道生成间隔: ${this.currentPipeSpawnInterval.toFixed(0)}毫秒`);
-            console.log(`高度变化范围: ±${currentHeightVariation.toFixed(0)}像素`);
-            console.log(`游戏版本: ${this.gameVersion}`);
-            console.log(`-----------------------------------------`);
-        } else if (this.score % 5 !== 0) {
-            this.scoreDisplayed = false;
-        }
     }
     
     // 计算当前难度系数的工具方法，确保所有地方使用相同的计算逻辑
@@ -1096,7 +1105,7 @@ class FlappyBirdGame {
         this.ctx.restore();
     }
     
-    // 游戏循环
+    // 游戏循环 - 优化性能和支持高帧率
     loop(timestamp) {
         // 计算帧间隔
         if (!this.lastTime) {
@@ -1114,13 +1123,23 @@ class FlappyBirdGame {
             this.frameCount = 0;
         }
         
+        // 帧率限制（如果设置了目标帧率）
+        if (this.targetFPS > 0) {
+            const targetFrameTime = 1000 / this.targetFPS;
+            if (deltaTime < targetFrameTime) {
+                // 如果运行太快，我们可以暂时跳过这一帧
+                this.animationFrameId = requestAnimationFrame((t) => this.loop(t));
+                return;
+            }
+        }
+        
         // 更新游戏状态
         this.update(deltaTime);
         
         // 渲染游戏
         this.render();
         
-        // 请求下一帧
+        // 请求下一帧 - 使用最新的API选项
         this.animationFrameId = requestAnimationFrame((t) => this.loop(t));
     }
     
@@ -1264,6 +1283,14 @@ class FlappyBirdGame {
             scoreData.date = this.currentChallengeDate;
         }
         
+        // 添加超时处理
+        const timeout = setTimeout(() => {
+            console.error('提交分数请求超时');
+            alert('提交超时，请重试');
+            submitButton.disabled = false;
+            submitButton.textContent = '提交分数';
+        }, 10000); // 10秒超时
+        
         try {
             const response = await fetch('/api/submit-score', {
                 method: 'POST',
@@ -1272,6 +1299,9 @@ class FlappyBirdGame {
                 },
                 body: JSON.stringify(scoreData)
             });
+            
+            // 清除超时
+            clearTimeout(timeout);
             
             if (response.ok) {
                 // 添加提交成功标记，防止再次提交
@@ -1293,6 +1323,9 @@ class FlappyBirdGame {
                 submitButton.textContent = '提交分数';
             }
         } catch (error) {
+            // 清除超时
+            clearTimeout(timeout);
+            
             console.error('提交分数错误:', error);
             alert('连接服务器失败');
             // 恢复按钮状态，允许重试
@@ -1513,6 +1546,29 @@ class FlappyBirdGame {
         
         // 根据设备类型显示不同的控制提示
         this.updateControlsDisplay();
+    }
+    
+    // 切换帧率限制
+    toggleFrameRateLimit() {
+        // 轮换帧率设置：不限制 -> 60 -> 120 -> 144 -> 不限制
+        if (this.targetFPS === 0) {
+            this.targetFPS = 60;
+        } else if (this.targetFPS === 60) {
+            this.targetFPS = 120;
+        } else if (this.targetFPS === 120) {
+            this.targetFPS = 144;
+        } else {
+            this.targetFPS = 0;
+        }
+        
+        // 更新按钮文本
+        const toggleFpsLimitBtn = document.getElementById('toggle-fps-limit');
+        if (toggleFpsLimitBtn) {
+            toggleFpsLimitBtn.textContent = this.targetFPS === 0 ? 
+                '帧率: 不限制' : `帧率: ${this.targetFPS} FPS`;
+        }
+        
+        console.log(`帧率设置已更改为: ${this.targetFPS === 0 ? '不限制' : this.targetFPS + ' FPS'}`);
     }
 }
 
