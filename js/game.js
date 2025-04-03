@@ -983,7 +983,7 @@ class FlappyBirdGame {
         
         // 难度控制分数阈值
         this.SCORE_MEDIUM_DIFFICULTY = 15;
-        this.SCORE_HARD_DIFFICULTY = 100;
+        this.SCORE_HARD_DIFFICULTY = 60;
         this.SCORE_DIFFICULTY_STEP = 5;
         
         // 其他游戏尺寸参数

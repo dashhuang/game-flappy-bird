@@ -20,13 +20,13 @@ export default function handler(req, res) {
     PIPE_GAP_INITIAL: 220,
     HEIGHT_VARIATION_INITIAL: 200,
     
-    // 中等难度参数 (15-100分)
+    // 中等难度参数 (15-60分)
     PIPE_SPEED_MEDIUM: 3.0,
     PIPE_SPAWN_INTERVAL_MEDIUM: 1600,
     PIPE_GAP_MEDIUM: 180,
     HEIGHT_VARIATION_MEDIUM: 400,
     
-    // 最终难度参数 (100分以上)
+    // 最终难度参数 (60分以上)
     PIPE_SPEED_FINAL: 3.0,
     PIPE_SPAWN_INTERVAL_FINAL: 1400,
     PIPE_GAP_FINAL: 120,
@@ -34,7 +34,7 @@ export default function handler(req, res) {
     
     // 难度控制分数阈值
     SCORE_MEDIUM_DIFFICULTY: 15,
-    SCORE_HARD_DIFFICULTY: 100,
+    SCORE_HARD_DIFFICULTY: 60,
     SCORE_DIFFICULTY_STEP: 5,
     
     // 其他游戏尺寸参数

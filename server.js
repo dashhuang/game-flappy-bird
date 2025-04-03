@@ -42,7 +42,7 @@ app.get('/api/game-config', (req, res) => {
     
     // 难度控制分数阈值
     SCORE_MEDIUM_DIFFICULTY: 15,
-    SCORE_HARD_DIFFICULTY: 100,
+    SCORE_HARD_DIFFICULTY: 60,
     SCORE_DIFFICULTY_STEP: 5,
     
     // 其他游戏尺寸参数
