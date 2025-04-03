@@ -1236,15 +1236,12 @@ class FlappyBirdGame {
         // 使用source-over模式合并云朵部分
         this.ctx.globalCompositeOperation = 'source-over';
         
-        // 获取云朵颜色（根据类型略有不同）
-        let cloudColor = 'rgba(255, 255, 255, 0.8)';
-        if (cloudType === 1) cloudColor = 'rgba(255, 255, 255, 0.7)';
-        if (cloudType === 2) cloudColor = 'rgba(250, 250, 250, 0.8)';
+        // 所有云朵使用相同的纯白色
+        this.ctx.fillStyle = '#FFFFFF';
         
         // 根据云朵类型绘制不同形状
         if (cloudType === 0) { // 基础蓬松云
             // 中心圆
-            this.ctx.fillStyle = cloudColor;
             this.ctx.beginPath();
             this.ctx.arc(x, y, size, 0, Math.PI * 2);
             this.ctx.fill();
@@ -1276,7 +1273,6 @@ class FlappyBirdGame {
         }
         else if (cloudType === 1) { // 长条云
             // 左侧圆
-            this.ctx.fillStyle = cloudColor;
             this.ctx.beginPath();
             this.ctx.arc(x, y, size * 0.7, 0, Math.PI * 2);
             this.ctx.fill();
@@ -1303,7 +1299,6 @@ class FlappyBirdGame {
         }
         else if (cloudType === 2) { // 聚集云
             // 中心圆
-            this.ctx.fillStyle = cloudColor;
             this.ctx.beginPath();
             this.ctx.arc(x, y, size * 0.9, 0, Math.PI * 2);
             this.ctx.fill();
