@@ -1233,40 +1233,100 @@ class FlappyBirdGame {
         // 保存当前绘图状态
         this.ctx.save();
         
-        switch(cloudType) {
-            case 0: // 基础蓬松云
-                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-                this.ctx.beginPath();
-                this.ctx.arc(x, y, size, 0, Math.PI * 2);
-                this.ctx.arc(x + size * 0.55, y - size * 0.4, size * 0.75, 0, Math.PI * 2);
-                this.ctx.arc(x + size * 1.1, y, size * 0.85, 0, Math.PI * 2);
-                this.ctx.arc(x + size * 0.55, y + size * 0.4, size * 0.75, 0, Math.PI * 2);
-                this.ctx.arc(x - size * 0.3, y + size * 0.25, size * 0.65, 0, Math.PI * 2);
-                this.ctx.arc(x + size * 1.4, y + size * 0.1, size * 0.5, 0, Math.PI * 2);
-                this.ctx.fill();
-                break;
-                
-            case 1: // 长条云
-                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-                this.ctx.beginPath();
-                this.ctx.arc(x, y, size * 0.7, 0, Math.PI * 2);
-                this.ctx.arc(x + size * 0.8, y - size * 0.2, size * 0.85, 0, Math.PI * 2);
-                this.ctx.arc(x + size * 1.6, y, size * 0.75, 0, Math.PI * 2);
-                this.ctx.arc(x + size * 2.4, y - size * 0.1, size * 0.75, 0, Math.PI * 2);
-                this.ctx.arc(x + size * 1.3, y + size * 0.3, size * 0.9, 0, Math.PI * 2);
-                this.ctx.fill();
-                break;
-                
-            case 2: // 聚集云
-                this.ctx.fillStyle = 'rgba(250, 250, 250, 0.8)';
-                this.ctx.beginPath();
-                this.ctx.arc(x, y, size * 0.9, 0, Math.PI * 2);
-                this.ctx.arc(x + size * 0.7, y - size * 0.4, size * 0.9, 0, Math.PI * 2);
-                this.ctx.arc(x - size * 0.2, y - size * 0.4, size * 0.7, 0, Math.PI * 2);
-                this.ctx.arc(x + size * 0.5, y + size * 0.3, size, 0, Math.PI * 2);
-                this.ctx.arc(x - size * 0.4, y + size * 0.25, size * 0.8, 0, Math.PI * 2);
-                this.ctx.fill();
-                break;
+        // 使用source-over模式合并云朵部分
+        this.ctx.globalCompositeOperation = 'source-over';
+        
+        // 获取云朵颜色（根据类型略有不同）
+        let cloudColor = 'rgba(255, 255, 255, 0.8)';
+        if (cloudType === 1) cloudColor = 'rgba(255, 255, 255, 0.7)';
+        if (cloudType === 2) cloudColor = 'rgba(250, 250, 250, 0.8)';
+        
+        // 根据云朵类型绘制不同形状
+        if (cloudType === 0) { // 基础蓬松云
+            // 中心圆
+            this.ctx.fillStyle = cloudColor;
+            this.ctx.beginPath();
+            this.ctx.arc(x, y, size, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // 右上圆
+            this.ctx.beginPath();
+            this.ctx.arc(x + size * 0.55, y - size * 0.4, size * 0.75, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // 右侧圆
+            this.ctx.beginPath();
+            this.ctx.arc(x + size * 1.1, y, size * 0.85, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // 右下圆
+            this.ctx.beginPath();
+            this.ctx.arc(x + size * 0.55, y + size * 0.4, size * 0.75, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // 左下圆
+            this.ctx.beginPath();
+            this.ctx.arc(x - size * 0.3, y + size * 0.25, size * 0.65, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // 最右侧圆
+            this.ctx.beginPath();
+            this.ctx.arc(x + size * 1.4, y + size * 0.1, size * 0.5, 0, Math.PI * 2);
+            this.ctx.fill();
+        }
+        else if (cloudType === 1) { // 长条云
+            // 左侧圆
+            this.ctx.fillStyle = cloudColor;
+            this.ctx.beginPath();
+            this.ctx.arc(x, y, size * 0.7, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // 左中圆
+            this.ctx.beginPath();
+            this.ctx.arc(x + size * 0.8, y - size * 0.2, size * 0.85, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // 中间圆
+            this.ctx.beginPath();
+            this.ctx.arc(x + size * 1.6, y, size * 0.75, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // 右侧圆
+            this.ctx.beginPath();
+            this.ctx.arc(x + size * 2.4, y - size * 0.1, size * 0.75, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // 底部圆
+            this.ctx.beginPath();
+            this.ctx.arc(x + size * 1.3, y + size * 0.3, size * 0.9, 0, Math.PI * 2);
+            this.ctx.fill();
+        }
+        else if (cloudType === 2) { // 聚集云
+            // 中心圆
+            this.ctx.fillStyle = cloudColor;
+            this.ctx.beginPath();
+            this.ctx.arc(x, y, size * 0.9, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // 右上圆
+            this.ctx.beginPath();
+            this.ctx.arc(x + size * 0.7, y - size * 0.4, size * 0.9, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // 左上圆
+            this.ctx.beginPath();
+            this.ctx.arc(x - size * 0.2, y - size * 0.4, size * 0.7, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // 右下圆
+            this.ctx.beginPath();
+            this.ctx.arc(x + size * 0.5, y + size * 0.3, size, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // 左下圆
+            this.ctx.beginPath();
+            this.ctx.arc(x - size * 0.4, y + size * 0.25, size * 0.8, 0, Math.PI * 2);
+            this.ctx.fill();
         }
         
         // 恢复绘图状态
