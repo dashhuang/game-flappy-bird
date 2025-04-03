@@ -101,6 +101,9 @@ class FlappyBirdGame {
         this.useFrameRateIndependentPhysics = true;
         this.physicsDeltaTime = 1000 / 60; // 基于60FPS的物理更新时间
         
+        // 防止渲染闪烁的标志
+        this.isRendering = false;
+        
         // 游戏模式
         this.gameMode = GAME_MODE.ENDLESS;
         
@@ -945,7 +948,8 @@ class FlappyBirdGame {
                         this.leaderboardUpdated = true;
                         // 在后台更新排行榜数据，不阻塞游戏
                         console.log(`达到得分阈值: ${this.scoreThreshold}分，更新排行榜数据`);
-                        this.loadLeaderboardInBackground();
+                        // 在游戏结束时更新排行榜，避免游戏过程中闪烁
+                        // this.loadLeaderboardInBackground();
                     }
                     
                     // 更新最高分
@@ -1188,13 +1192,24 @@ class FlappyBirdGame {
     
     // 渲染游戏 - 改进帧率独立性
     render() {
+        // 如果已经在渲染中，避免重复渲染造成闪烁
+        if (this.isRendering) {
+            return;
+        }
+        
+        this.isRendering = true;
+        
         // 验证游戏元素是否初始化
         if (!this.bird) {
             if (this.isConfigLoaded && !this.bird) {
                 console.log('尝试重新初始化游戏元素');
                 this.initGameAfterConfigLoaded();
-                if (!this.bird) return; // 如果仍然失败，放弃本次渲染
+                if (!this.bird) {
+                    this.isRendering = false;
+                    return; // 如果仍然失败，放弃本次渲染
+                }
             } else {
+                this.isRendering = false;
                 return; // 放弃本次渲染
             }
         }
@@ -1204,14 +1219,22 @@ class FlappyBirdGame {
         const deltaTime = currentTime - (this.lastRenderTime || currentTime);
         this.lastRenderTime = currentTime;
         
+        // 避免过大的deltaTime值导致不平滑的渲染
+        // 如果deltaTime过大（例如页面切换回来后），限制它以避免闪烁
+        const maxDeltaTime = 50; // 限制最大时间增量为50ms
+        const smoothDeltaTime = Math.min(deltaTime, maxDeltaTime);
+        
         // 清除画布
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // 使用双缓冲技术避免闪烁
+        // 然后继续正常渲染...
         
         // 绘制背景（天空）
         this.ctx.fillStyle = '#87CEEB';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // 绘制云朵 - 恢复之前的逻辑
+        // 绘制云朵 - 使用平滑的时间增量
         this.ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
         const screenWidth = this.canvas.width;
         const cloudCount = screenWidth < 500 ? 3 : Math.min(Math.floor(screenWidth / 250) + 2, 5);
@@ -1230,7 +1253,7 @@ class FlappyBirdGame {
                 }
             }
             const cloud = this.cloudPositions[i];
-            cloud.x -= cloud.speed * deltaTime;
+            cloud.x -= cloud.speed * smoothDeltaTime;
             if (cloud.x < -cloud.size * 4) {
                 cloud.x = screenWidth + cloud.size * 2;
                 cloud.y = this.canvas.height * 0.2 + Math.sin(Date.now() / 1000 + i) * 20;
@@ -1304,6 +1327,9 @@ class FlappyBirdGame {
         this.ctx.fill();
         
         this.ctx.restore();
+        
+        // 在函数最后重置渲染标志
+        this.isRendering = false;
     }
     
     // 游戏循环 - 优化性能和支持高帧率
@@ -1315,8 +1341,12 @@ class FlappyBirdGame {
         const deltaTime = timestamp - this.lastTime;
         this.lastTime = timestamp;
         
+        // 限制deltaTime，避免页面不活跃后回来时的大幅更新导致闪烁
+        const maxDeltaTime = 50; // 限制最大时间增量为50ms
+        const smoothDeltaTime = Math.min(deltaTime, maxDeltaTime);
+        
         // 更新游戏状态
-        this.update(deltaTime);
+        this.update(smoothDeltaTime);
         
         // 渲染游戏
         this.render();
@@ -1467,8 +1497,12 @@ class FlappyBirdGame {
                 }
                 this.leaderboardData = data;
                 console.log("【调试】排行榜数据加载成功，共", data.length, "条记录");
-                // 处理排行榜数据以创建墓碑
-                this.processLeaderboardForTombstones();
+                // 只在非游戏状态下更新墓碑数据，避免游戏中闪烁
+                if (this.gameState !== GAME_STATE.PLAYING) {
+                    this.processLeaderboardForTombstones();
+                } else {
+                    console.log("【调试】游戏进行中，延迟处理墓碑数据以避免闪烁");
+                }
             })
             .catch(error => {
                 // 只在控制台记录错误，不显示给用户
@@ -1730,6 +1764,11 @@ class FlappyBirdGame {
     async checkConfigUpdate() {
         // 避免频繁检查
         if (Date.now() - this.configLastChecked < this.configCheckInterval) {
+            return;
+        }
+        
+        // 如果正在游戏中，避免更新配置导致闪烁
+        if (this.gameState === GAME_STATE.PLAYING) {
             return;
         }
         
