@@ -1225,12 +1225,62 @@ class FlappyBirdGame {
     
     // 绘制云朵
     drawCloud(x, y, size) {
-        this.ctx.beginPath();
-        this.ctx.arc(x, y, size, 0, Math.PI * 2);
-        this.ctx.arc(x + size * 0.5, y - size * 0.4, size * 0.8, 0, Math.PI * 2);
-        this.ctx.arc(x + size * 1.0, y, size * 0.9, 0, Math.PI * 2);
-        this.ctx.arc(x + size * 0.5, y + size * 0.4, size * 0.8, 0, Math.PI * 2);
-        this.ctx.fill();
+        // 给每朵云一个稳定的随机类型（基于位置）
+        const cloudType = Math.floor((x * y) % 3);
+        
+        // 保存当前绘图状态
+        this.ctx.save();
+        
+        switch(cloudType) {
+            case 0: // 基础蓬松云
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                this.ctx.beginPath();
+                this.ctx.arc(x, y, size, 0, Math.PI * 2);
+                this.ctx.arc(x + size * 0.55, y - size * 0.4, size * 0.75, 0, Math.PI * 2);
+                this.ctx.arc(x + size * 1.1, y, size * 0.85, 0, Math.PI * 2);
+                this.ctx.arc(x + size * 0.55, y + size * 0.4, size * 0.75, 0, Math.PI * 2);
+                this.ctx.arc(x - size * 0.3, y + size * 0.25, size * 0.65, 0, Math.PI * 2);
+                this.ctx.arc(x + size * 1.4, y + size * 0.1, size * 0.5, 0, Math.PI * 2);
+                this.ctx.fill();
+                break;
+                
+            case 1: // 长条云
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                this.ctx.beginPath();
+                this.ctx.arc(x, y, size * 0.7, 0, Math.PI * 2);
+                this.ctx.arc(x + size * 0.8, y - size * 0.2, size * 0.85, 0, Math.PI * 2);
+                this.ctx.arc(x + size * 1.6, y, size * 0.75, 0, Math.PI * 2);
+                this.ctx.arc(x + size * 2.4, y - size * 0.1, size * 0.75, 0, Math.PI * 2);
+                this.ctx.arc(x + size * 1.3, y + size * 0.3, size * 0.9, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // 添加一点阴影效果
+                this.ctx.fillStyle = 'rgba(220, 220, 220, 0.5)';
+                this.ctx.beginPath();
+                this.ctx.arc(x + size * 1.2, y + size * 0.5, size * 0.4, 0, Math.PI * 2);
+                this.ctx.fill();
+                break;
+                
+            case 2: // 聚集云
+                this.ctx.fillStyle = 'rgba(250, 250, 250, 0.8)';
+                this.ctx.beginPath();
+                this.ctx.arc(x, y, size * 0.9, 0, Math.PI * 2);
+                this.ctx.arc(x + size * 0.7, y - size * 0.4, size * 0.9, 0, Math.PI * 2);
+                this.ctx.arc(x - size * 0.2, y - size * 0.4, size * 0.7, 0, Math.PI * 2);
+                this.ctx.arc(x + size * 0.5, y + size * 0.3, size, 0, Math.PI * 2);
+                this.ctx.arc(x - size * 0.4, y + size * 0.25, size * 0.8, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // 添加明亮高光
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                this.ctx.beginPath();
+                this.ctx.arc(x + size * 0.2, y - size * 0.2, size * 0.5, 0, Math.PI * 2);
+                this.ctx.fill();
+                break;
+        }
+        
+        // 恢复绘图状态
+        this.ctx.restore();
     }
     
     // 在后台加载排行榜数据
