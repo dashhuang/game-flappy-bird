@@ -513,9 +513,23 @@ class FlappyBirdGame {
             // 计算当前高度变化范围
             const currentHeightVariation = 200 + difficultyFactor * 200;
             
+            // 更新难度阶段描述
+            let difficultyStage;
+            if (this.pipesPassedCount < phase1PipesCount) {
+                difficultyStage = "1-初始提升(0-80%)";
+            } else if (this.score < 15) {
+                difficultyStage = "2-稳定期(80%)";
+            } else if (this.score < 30) {
+                const progress = Math.min((this.score - 15) / 15, 1);
+                const percentage = 80 + progress * 20;
+                difficultyStage = `3-平缓过渡(${percentage.toFixed(1)}%)`;
+            } else {
+                difficultyStage = "4-最高难度(100%)";
+            }
+            
             console.log(`--------- 当前状态 (得分: ${this.score}) ---------`);
             console.log(`难度系数: ${(difficultyFactor * 100).toFixed(1)}%`);
-            console.log(`难度阶段: ${this.pipesPassedCount < phase1PipesCount ? "1-初始提升(0-80%)" : this.score < 20 ? "2-稳定期(80%)" : "3-最终提升(80-100%)"}`);
+            console.log(`难度阶段: ${difficultyStage}`);
             console.log(`通过管道对数: ${this.pipesPassedCount}`);
             console.log(`管道间隙: ${this.currentPipeGap.toFixed(1)}像素`);
             console.log(`管道速度: ${this.currentPipeSpeed.toFixed(1)}`);
@@ -537,14 +551,17 @@ class FlappyBirdGame {
         if (this.pipesPassedCount < phase1PipesCount) {
             // 第一阶段：0-80%难度正常提升
             difficultyFactor = this.pipesPassedCount / (DIFFICULTY_INCREASE_RATE * 5);
-        } else if (this.score < 20) {
-            // 第二阶段：保持80%难度直到得分达到20
+        } else if (this.score < 15) {
+            // 第二阶段：保持80%难度直到得分达到15分
             difficultyFactor = 0.8;
+        } else if (this.score < 30) {
+            // 第三阶段：从15分到30分，难度从80%平缓过渡到100%
+            // 每5分增加一定的难度，总共3个等级(15分,20分,25分)
+            const transitionProgress = Math.min((this.score - 15) / 15, 1); // 从0到1的过渡进度
+            difficultyFactor = 0.8 + transitionProgress * 0.2; // 从80%逐渐增加到100%
         } else {
-            // 第三阶段：得分超过20后继续提升难度到100%
-            // 将剩余的20%难度分配在通过管道数量的剩余范围内
-            const remainingFactor = (this.pipesPassedCount - phase1PipesCount) / (phase1PipesCount * 0.25);
-            difficultyFactor = 0.8 + Math.min(remainingFactor, 1) * 0.2;
+            // 第四阶段：30分以上保持100%难度
+            difficultyFactor = 1.0;
         }
         
         // 确保难度系数在0-1之间
@@ -576,7 +593,22 @@ class FlappyBirdGame {
         console.log(`通过管道数: ${this.pipesPassedCount}`);
         console.log(`当前分数: ${this.score}`);
         console.log(`难度系数: ${(difficultyFactor * 100).toFixed(1)}%`);
-        console.log(`难度阶段: ${this.pipesPassedCount < phase1PipesCount ? "1-初始提升(0-80%)" : this.score < 20 ? "2-稳定期(80%)" : "3-最终提升(80-100%)"}`);
+        
+        // 更新难度阶段描述
+        let difficultyStage;
+        if (this.pipesPassedCount < phase1PipesCount) {
+            difficultyStage = "1-初始提升(0-80%)";
+        } else if (this.score < 15) {
+            difficultyStage = "2-稳定期(80%)";
+        } else if (this.score < 30) {
+            const progress = Math.min((this.score - 15) / 15, 1);
+            const percentage = 80 + progress * 20;
+            difficultyStage = `3-平缓过渡(${percentage.toFixed(1)}%)`;
+        } else {
+            difficultyStage = "4-最高难度(100%)";
+        }
+        
+        console.log(`难度阶段: ${difficultyStage}`);
         console.log(`管道间隙: ${this.currentPipeGap.toFixed(1)}像素`);
         console.log(`管道速度: ${this.currentPipeSpeed.toFixed(1)}`);
         console.log(`管道生成间隔: ${this.currentPipeSpawnInterval.toFixed(0)}毫秒`);
