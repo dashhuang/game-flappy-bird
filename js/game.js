@@ -1047,6 +1047,11 @@ class FlappyBirdGame {
             }
         }
         
+        // 获取deltaTime用于平滑动画
+        const currentTime = Date.now();
+        const deltaTime = currentTime - (this.lastRenderTime || currentTime);
+        this.lastRenderTime = currentTime;
+        
         // 清除画布
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
@@ -1054,21 +1059,45 @@ class FlappyBirdGame {
         this.ctx.fillStyle = '#87CEEB';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // 绘制云朵（根据屏幕宽度自动调整数量）
+        // 绘制云朵 - 改进为从屏幕外生成和消失
         this.ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
         
-        // 根据屏幕宽度计算云朵数量，手机窄屏使用3朵
+        // 根据屏幕宽度计算云朵数量
         const screenWidth = this.canvas.width;
         const cloudCount = screenWidth < 500 ? 3 : Math.min(Math.floor(screenWidth / 250) + 2, 5);
         
+        // 计算每朵云的初始位置和速度
         for (let i = 0; i < cloudCount; i++) {
-            // 根据云朵数量均匀分布在屏幕上
-            const segmentWidth = this.canvas.width / (cloudCount - 0.5);
-            const x = (segmentWidth * i + (Date.now() / 10000 * this.canvas.width) % this.canvas.width) % this.canvas.width;
-            const y = this.canvas.height * 0.2 + Math.sin(Date.now() / 1000 + i) * 20;
-            const size = 30 + Math.sin(Date.now() / 1000 + i * 2) * 10;
+            // 初始化云朵位置（如果尚未初始化）
+            if (!this.cloudPositions) {
+                this.cloudPositions = [];
+                for (let j = 0; j < cloudCount; j++) {
+                    // 将云朵均匀分布在整个移动循环中
+                    const initialOffset = (j / cloudCount) * (screenWidth + 400); 
+                    this.cloudPositions.push({
+                        x: initialOffset,
+                        y: this.canvas.height * 0.2 + Math.sin(j) * 20,
+                        size: 30 + Math.sin(j * 2) * 10,
+                        speed: 0.3 + Math.random() * 0.2 // 每朵云速度略有不同
+                    });
+                }
+            }
             
-            this.drawCloud(x, y, size);
+            // 获取当前云朵数据
+            const cloud = this.cloudPositions[i];
+            
+            // 移动云朵位置 - 使用帧率独立的移动
+            cloud.x -= cloud.speed * deltaTime;
+            
+            // 当云朵完全移出屏幕后，重置到屏幕右侧外
+            if (cloud.x < -cloud.size * 4) {
+                cloud.x = screenWidth + cloud.size * 2;
+                cloud.y = this.canvas.height * 0.2 + Math.sin(Date.now() / 1000 + i) * 20;
+                cloud.size = 30 + Math.sin(Date.now() / 1000 + i * 2) * 10;
+            }
+            
+            // 绘制云朵
+            this.drawCloud(cloud.x, cloud.y, cloud.size);
         }
         
         // 绘制管道
