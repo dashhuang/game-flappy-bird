@@ -1132,7 +1132,7 @@ class FlappyBirdGame {
         let tombstoneColor = '#E74C3C'; // 默认颜色（红色）
         
         if (this.tombstones && this.tombstones.length > 0) {
-            const tombstone = this.tombstones.find(t => t.score === pipeNumber && !t.placed);
+            const tombstone = this.tombstones.find(t => parseInt(t.score) === pipeNumber && !t.placed);
             if (tombstone) {
                 hasTombstone = true;
                 tombstoneName = tombstone.name;
@@ -1858,8 +1858,11 @@ class FlappyBirdGame {
             const colorIndex = simpleStringHash(name) % FLAG_COLORS.length;
             const flagColor = FLAG_COLORS[colorIndex];
             
+            const scoreInt = parseInt(score);
+            console.log(`【调试】创建旗子 - 分数:${scoreInt}, 玩家:${name}, 颜色:${flagColor}`);
+            
             this.tombstones.push({
-                score: parseInt(score),
+                score: scoreInt,
                 name: name,
                 placed: false,
                 color: flagColor // 存储计算好的颜色
