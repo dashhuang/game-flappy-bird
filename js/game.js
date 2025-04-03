@@ -46,10 +46,11 @@ class FlappyBirdGame {
         this.dailyChallengeSeed = this.generateDailySeed();
         this.maxDailyChallengePipes = 50;
         this.pipeCount = 0;
+        this.currentChallengeDate = this.getCurrentChallengeDate();
         
         // 分数存储 - 区分不同模式
         this.endlessHighScore = localStorage.getItem('flappyBirdEndlessHighScore') || 0;
-        this.challengeHighScore = localStorage.getItem('flappyBirdChallengeHighScore') || 0;
+        this.challengeHighScore = this.getChallengeHighScore();
         
         // 初始化默认配置（用于回退）
         this.initDefaultConfig();
@@ -307,15 +308,20 @@ class FlappyBirdGame {
     
     // 更新当前模式的最高分
     updateCurrentModeHighScore(score) {
-        if (score > this.getCurrentModeHighScore()) {
-            if (this.gameMode === GAME_MODE.ENDLESS) {
+        if (this.gameMode === GAME_MODE.ENDLESS) {
+            // 无尽模式
+            if (score > this.endlessHighScore) {
                 this.endlessHighScore = score;
                 localStorage.setItem('flappyBirdEndlessHighScore', score);
-            } else {
-                this.challengeHighScore = score;
-                localStorage.setItem('flappyBirdChallengeHighScore', score);
+                return true; // 表示更新了最高分
             }
-            return true; // 表示更新了最高分
+        } else {
+            // 每日挑战模式 - 按日期存储
+            if (score > this.challengeHighScore) {
+                this.challengeHighScore = score;
+                localStorage.setItem(`flappyBirdChallengeHighScore_${this.currentChallengeDate}`, score);
+                return true; // 表示更新了最高分
+            }
         }
         return false; // 表示没有更新最高分
     }
@@ -336,12 +342,34 @@ class FlappyBirdGame {
     
     // 生成基于日期的种子
     generateDailySeed() {
-        const today = new Date();
-        return today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+        const today = this.getCurrentChallengeDate();
+        const [year, month, day] = today.split('-').map(Number);
+        return year * 10000 + month * 100 + day;
+    }
+    
+    // 获取北京时间（GMT+8）的日期字符串（YYYY-MM-DD格式）
+    getCurrentChallengeDate() {
+        const now = new Date();
+        const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+        const year = beijingTime.getUTCFullYear();
+        const month = String(beijingTime.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(beijingTime.getUTCDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+    
+    // 获取当前日期的每日挑战高分
+    getChallengeHighScore() {
+        const date = this.currentChallengeDate;
+        return localStorage.getItem(`flappyBirdChallengeHighScore_${date}`) || 0;
     }
     
     // 重置每日挑战的随机种子
     resetDailyChallengeSeed() {
+        // 更新当前挑战日期
+        this.currentChallengeDate = this.getCurrentChallengeDate();
+        // 重新获取当前日期的高分
+        this.challengeHighScore = this.getChallengeHighScore();
+        // 生成种子
         this.dailyChallengeSeed = this.generateDailySeed();
         this.seededRandom = this.mulberry32(this.dailyChallengeSeed);
     }
@@ -379,10 +407,16 @@ class FlappyBirdGame {
         document.getElementById('victory-screen').style.display = 'flex';
         document.getElementById('victory-score').textContent = this.score;
         
-        // 显示当前游戏模式
+        // 显示当前游戏模式和日期
         const victoryModeDisplay = document.getElementById('victory-mode-display');
+        const victoryDateDisplay = document.getElementById('victory-date-display');
+        
         if (victoryModeDisplay) {
             victoryModeDisplay.textContent = '每日挑战';
+        }
+        
+        if (victoryDateDisplay) {
+            victoryDateDisplay.textContent = this.currentChallengeDate;
         }
         
         // 获取并显示当前模式的最高分
@@ -407,10 +441,22 @@ class FlappyBirdGame {
         const currentHighScore = this.getCurrentModeHighScore();
         this.highScoreDisplay.textContent = currentHighScore;
         
-        // 显示当前游戏模式
+        // 显示当前游戏模式和日期
         const modeDisplay = document.getElementById('game-mode-display');
+        const dateDisplay = document.getElementById('challenge-date-display');
+        
         if (modeDisplay) {
             modeDisplay.textContent = this.gameMode === GAME_MODE.ENDLESS ? '无尽模式' : '每日挑战';
+        }
+        
+        // 如果是每日挑战模式，显示日期
+        if (dateDisplay) {
+            if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
+                dateDisplay.textContent = this.currentChallengeDate;
+                dateDisplay.parentElement.style.display = 'block';
+            } else {
+                dateDisplay.parentElement.style.display = 'none';
+            }
         }
         
         // 默认隐藏名字输入框
@@ -492,9 +538,18 @@ class FlappyBirdGame {
         }
         
         // 根据当前模式筛选排行榜数据
-        return this.leaderboardData.filter(entry => 
+        let filteredData = this.leaderboardData.filter(entry => 
             entry.mode === (this.gameMode === GAME_MODE.ENDLESS ? 'endless' : 'challenge')
         );
+        
+        // 如果是每日挑战模式，还需要按日期筛选
+        if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
+            filteredData = filteredData.filter(entry => 
+                entry.date === this.currentChallengeDate
+            );
+        }
+        
+        return filteredData;
     }
     
     // 检查分数是否能进入前20名
@@ -1104,7 +1159,12 @@ class FlappyBirdGame {
         
         // 更新排行榜模式显示
         if (leaderboardMode) {
-            leaderboardMode.textContent = this.gameMode === GAME_MODE.ENDLESS ? '无尽模式' : '每日挑战';
+            let modeText = this.gameMode === GAME_MODE.ENDLESS ? '无尽模式' : '每日挑战';
+            // 如果是每日挑战，添加日期
+            if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
+                modeText += ` (${this.currentChallengeDate})`;
+            }
+            leaderboardMode.textContent = modeText;
         }
         
         leaderboardList.innerHTML = '';
@@ -1160,17 +1220,25 @@ class FlappyBirdGame {
         // 获取当前游戏模式
         const mode = this.gameMode === GAME_MODE.ENDLESS ? 'endless' : 'challenge';
         
+        // 创建提交数据
+        const scoreData = {
+            name: name,
+            score: this.score,
+            mode: mode
+        };
+        
+        // 如果是每日挑战模式，添加日期
+        if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
+            scoreData.date = this.currentChallengeDate;
+        }
+        
         try {
             const response = await fetch('/api/submit-score', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    name: name,
-                    score: this.score,
-                    mode: mode
-                })
+                body: JSON.stringify(scoreData)
             });
             
             if (response.ok) {

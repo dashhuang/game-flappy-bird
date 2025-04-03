@@ -450,3 +450,10 @@ button:active {
     50% { transform: scale(1.1); }
     100% { transform: scale(1); }
 }
+
+/* 挑战日期样式 */
+.challenge-date {
+    display: none;
+    color: #FFC107;
+    font-weight: bold;
+}

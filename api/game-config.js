@@ -2,7 +2,7 @@
 
 export default function handler(req, res) {
   // 游戏版本号，每次修改配置时更新
-  const gameVersion = "1.0.1";
+  const gameVersion = "1.0.2";
   
   // 游戏配置参数
   const gameConfig = {
