@@ -13,6 +13,21 @@
     backface-visibility: hidden;
 }
 
+html, body {
+    overflow: hidden; /* 防止整个页面滚动 */
+    width: 100%;
+    height: 100%;
+    /* 消除边距 */
+    margin: 0;
+    padding: 0;
+    /* 防止iOS橡皮筋效果 */
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+}
+
 body {
     font-family: 'Arial', sans-serif;
     display: flex;
@@ -20,19 +35,31 @@ body {
     align-items: center;
     min-height: 100vh;
     max-height: 100vh;
+    /* 使用var(--vh)变量修复iOS 100vh问题 */
+    min-height: calc(var(--vh, 1vh) * 100);
+    max-height: calc(var(--vh, 1vh) * 100);
     background-color: #87CEEB;
     overflow: hidden;
     margin: 0;
     padding: 0;
     touch-action: manipulation; /* 防止iOS上的双击缩放 */
+    -webkit-touch-callout: none; /* 禁止长按菜单 */
+    -webkit-user-select: none; /* 禁止文本选择 */
+    user-select: none;
 }
 
 .game-container {
-    position: relative;
+    position: fixed; /* 改为fixed确保始终固定在视口 */
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     width: 100%;
-    height: 100vh;
+    height: 100%;
+    height: calc(var(--vh, 1vh) * 100); /* 使用CSS变量修复iOS的100vh问题 */
     max-width: 100%;
     max-height: 100vh;
+    max-height: calc(var(--vh, 1vh) * 100);
     overflow: hidden;
     /* 添加硬件加速支持 */
     will-change: transform;
@@ -48,6 +75,7 @@ body {
     display: block;
     width: 100%;
     height: 100%;
+    height: calc(var(--vh, 1vh) * 100);
     background-color: #87CEEB;
     position: absolute;
     top: 0;
@@ -166,20 +194,6 @@ button:active {
     color: white;
     text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
     z-index: 5;
-}
-
-/* FPS计数器样式 */
-#fps-counter {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    background-color: rgba(0, 0, 0, 0.5);
-    color: white;
-    padding: 5px 10px;
-    border-radius: 3px;
-    font-size: 14px;
-    font-family: monospace;
-    z-index: 100;
 }
 
 .difficulty-text {
@@ -649,17 +663,19 @@ button:active {
     }
 }
 
-/* 修复body和html的滚动问题，但允许游戏屏幕内滚动 */
-html, body {
-    overflow: hidden; /* 防止整个页面滚动 */
-    width: 100%;
-    height: 100%;
-}
-
 /* 修复iOS中的特殊滚动问题 */
 @supports (-webkit-touch-callout: none) {
     body {
         /* 解决iOS上100vh问题 */
+        height: -webkit-fill-available;
+    }
+    
+    .game-container {
+        height: -webkit-fill-available;
+        max-height: -webkit-fill-available;
+    }
+    
+    #game-canvas {
         height: -webkit-fill-available;
     }
 }

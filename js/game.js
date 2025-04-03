@@ -9,11 +9,27 @@ function setViewportHeight() {
     let vh = window.innerHeight * 0.01;
     // 设置CSS变量
     document.documentElement.style.setProperty('--vh', `${vh}px`);
+    
+    // 直接应用到游戏容器和canvas
+    const gameContainer = document.getElementById('game-container');
+    const canvas = document.getElementById('game-canvas');
+    
+    if (gameContainer) {
+        gameContainer.style.height = `${window.innerHeight}px`;
+    }
+    
+    if (canvas) {
+        canvas.height = window.innerHeight;
+    }
 }
 
 // 初始设置和窗口大小变化时更新
 setViewportHeight();
 window.addEventListener('resize', setViewportHeight);
+window.addEventListener('orientationchange', () => {
+    // iOS上方向变化后需要延迟更新
+    setTimeout(setViewportHeight, 100);
+});
 
 // 游戏状态
 const GAME_STATE = {
@@ -41,12 +57,6 @@ class FlappyBirdGame {
         this.isConfigLoaded = false;
         this.configLastChecked = 0;
         this.configCheckInterval = 60000; // 每分钟检查一次配置更新
-        
-        // FPS计算相关
-        this.fpsElement = document.getElementById('fps-counter');
-        this.frameCount = 0;
-        this.lastFpsUpdate = 0;
-        this.fps = 0;
         
         // 使用帧率独立的物理计算
         this.useFrameRateIndependentPhysics = true;
@@ -293,14 +303,48 @@ class FlappyBirdGame {
             // 防止页面滚动和弹跳
             document.body.style.overflow = 'hidden';
             document.documentElement.style.overflow = 'hidden';
+            document.body.style.position = 'fixed';
+            document.body.style.top = '0';
+            document.body.style.left = '0';
+            document.body.style.width = '100%';
+            document.body.style.height = '100%';
+            
+            // 阻止所有默认滚动行为
             document.addEventListener('touchmove', function(e) {
-                if (e.touches.length > 1) {
+                e.preventDefault();
+            }, { passive: false });
+            
+            // 阻止双击缩放
+            document.addEventListener('touchend', function(e) {
+                const now = Date.now();
+                if (now - this.lastTouchEnd <= 300) {
                     e.preventDefault();
                 }
-            }, { passive: false });
+                this.lastTouchEnd = now;
+            }.bind(this), false);
             
             // 立即更新视口高度
             setViewportHeight();
+            
+            // 处理iOS Safari额外问题
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+            if (isIOS) {
+                // 添加iOS特定处理
+                window.addEventListener('focusout', function() {
+                    // 当软键盘收起时
+                    setViewportHeight();
+                });
+                
+                // 在滚动结束后重新设置高度(iOS工具栏出现/消失)
+                let scrollTimeout;
+                window.addEventListener('scroll', function() {
+                    clearTimeout(scrollTimeout);
+                    scrollTimeout = setTimeout(setViewportHeight, 100);
+                });
+                
+                // iOS上工具栏出现/消失会触发resize事件
+                window.addEventListener('resize', setViewportHeight);
+            }
             
             // 检查是否有安全区域insets可用
             if (window.CSS && CSS.supports('padding-top: env(safe-area-inset-top)')) {
@@ -1186,15 +1230,6 @@ class FlappyBirdGame {
         }
         const deltaTime = timestamp - this.lastTime;
         this.lastTime = timestamp;
-        
-        // 计算FPS
-        this.frameCount++;
-        if (timestamp - this.lastFpsUpdate >= 1000) { // 每秒更新一次FPS
-            this.fps = Math.round((this.frameCount * 1000) / (timestamp - this.lastFpsUpdate));
-            this.fpsElement.textContent = `FPS: ${this.fps}`;
-            this.lastFpsUpdate = timestamp;
-            this.frameCount = 0;
-        }
         
         // 更新游戏状态
         this.update(deltaTime);
