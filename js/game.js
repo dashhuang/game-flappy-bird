@@ -1059,7 +1059,7 @@ class FlappyBirdGame {
         
         // 根据屏幕宽度计算云朵数量，手机窄屏使用3朵
         const screenWidth = this.canvas.width;
-        const cloudCount = screenWidth < 500 ? 3 : Math.min(Math.floor(screenWidth / 250) + 2, 7);
+        const cloudCount = screenWidth < 500 ? 3 : Math.min(Math.floor(screenWidth / 250) + 2, 5);
         
         for (let i = 0; i < cloudCount; i++) {
             // 根据云朵数量均匀分布在屏幕上
