@@ -520,7 +520,7 @@ class FlappyBirdGame {
         this.gameJustEnded = true;
         this.canRestartAfterGameOver = false;
         
-        // 1秒后显示按钮并允许重新开始游戏
+        // 0.5秒后显示按钮并允许重新开始游戏
         setTimeout(() => {
             // 显示按钮（使用visibility而不是display）
             if (buttonContainer) {
@@ -542,7 +542,7 @@ class FlappyBirdGame {
             
             this.canRestartAfterGameOver = true;
             this.gameJustEnded = false;
-        }, 1000);
+        }, 500);
     }
     
     // 检查分数是否有资格提交
