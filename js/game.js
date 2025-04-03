@@ -39,6 +39,23 @@ class FlappyBirdGame {
         this.configLastChecked = 0;
         this.configCheckInterval = 60000; // 每分钟检查一次配置更新
         
+        // 帧率监控
+        this.fpsCounter = document.createElement('div');
+        this.fpsCounter.id = 'fps-counter';
+        this.fpsCounter.style.position = 'fixed';
+        this.fpsCounter.style.top = '10px';
+        this.fpsCounter.style.right = '10px';
+        this.fpsCounter.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+        this.fpsCounter.style.color = 'white';
+        this.fpsCounter.style.padding = '5px';
+        this.fpsCounter.style.borderRadius = '5px';
+        this.fpsCounter.style.zIndex = '1000';
+        document.body.appendChild(this.fpsCounter);
+        
+        this.frames = 0;
+        this.lastFpsUpdate = 0;
+        this.fps = 0;
+        
         // 游戏模式
         this.gameMode = GAME_MODE.ENDLESS;
         
@@ -690,18 +707,38 @@ class FlappyBirdGame {
             }
         }
         
+        // 优化：计算鸟的碰撞箱一次，避免重复计算
+        const birdBox = {
+            left: this.bird.x,
+            right: this.bird.x + this.bird.width,
+            top: this.bird.y,
+            bottom: this.bird.y + this.bird.height
+        };
+        
+        // 优化：仅检查在屏幕上可见且与鸟接近的管道
+        let collisionDetected = false;
+        let pipesToRemove = [];
+        let scoreIncreased = false;
+        
         // 更新管道位置
         for (let i = 0; i < this.pipes.length; i++) {
             const pipe = this.pipes[i];
             pipe.x -= this.currentPipeSpeed;
             
-            // 检查碰撞
-            if (this.checkCollision(this.bird, pipe)) {
-                this.gameOver();
+            // 仅对可能发生碰撞的管道进行碰撞检测
+            if (!collisionDetected && 
+                pipe.x < birdBox.right + 5 && 
+                pipe.x + this.PIPE_WIDTH > birdBox.left - 5) {
+                
+                // 检查碰撞
+                if (this.checkCollisionOptimized(birdBox, pipe)) {
+                    collisionDetected = true;
+                    // 无需立即结束循环，继续更新其他管道
+                }
             }
             
             // 计分 - 只对上管道计分，确保每对管道只加1分
-            if (!pipe.passed && pipe.x + this.PIPE_WIDTH < this.bird.x && pipe.isTop) {
+            if (!scoreIncreased && !pipe.passed && pipe.x + this.PIPE_WIDTH < this.bird.x && pipe.isTop) {
                 pipe.passed = true;
                 // 同时标记对应的下管道为已通过
                 if (i + 1 < this.pipes.length) {
@@ -710,6 +747,7 @@ class FlappyBirdGame {
                 
                 this.score++;
                 this.updateScore();
+                scoreIncreased = true;
                 
                 // 增加通过管道计数
                 this.pipesPassedCount++;
@@ -755,10 +793,26 @@ class FlappyBirdGame {
                     localStorage.setItem('flappyBirdHighScore', this.highScore);
                 }
             }
+            
+            // 对于已经离开屏幕的管道，标记为待移除
+            if (pipe.x + this.PIPE_WIDTH < 0) {
+                pipesToRemove.push(i);
+            }
         }
         
-        // 移除离开屏幕的管道
-        this.pipes = this.pipes.filter(pipe => pipe.x + this.PIPE_WIDTH > 0);
+        // 如果检测到碰撞，结束游戏
+        if (collisionDetected) {
+            this.gameOver();
+            return;
+        }
+        
+        // 优化：一次性移除所有离开屏幕的管道
+        if (pipesToRemove.length > 0) {
+            // 从后往前移除，避免索引错位
+            for (let i = pipesToRemove.length - 1; i >= 0; i--) {
+                this.pipes.splice(pipesToRemove[i], 1);
+            }
+        }
         
         // 定期显示当前难度参数（与难度增加无关，仅用于信息显示）
         if (this.score > 0 && this.score % 5 === 0 && !this.scoreDisplayed) {
@@ -788,10 +842,32 @@ class FlappyBirdGame {
             console.log(`管道生成间隔: ${this.currentPipeSpawnInterval.toFixed(0)}毫秒`);
             console.log(`高度变化范围: ±${currentHeightVariation.toFixed(0)}像素`);
             console.log(`游戏版本: ${this.gameVersion}`);
+            console.log(`FPS: ${this.fps}`);
             console.log(`-----------------------------------------`);
         } else if (this.score % 5 !== 0) {
             this.scoreDisplayed = false;
         }
+    }
+    
+    // 优化的碰撞检测函数
+    checkCollisionOptimized(birdBox, pipe) {
+        // 固定的容错空间（5像素）
+        const tolerance = 5;
+        
+        // 计算管道的碰撞箱
+        const pipeBox = {
+            left: pipe.x,
+            right: pipe.x + pipe.width,
+            top: pipe.y,
+            bottom: pipe.y + pipe.height
+        };
+        
+        return (
+            birdBox.left + tolerance < pipeBox.right &&
+            birdBox.right - tolerance > pipeBox.left &&
+            birdBox.top + tolerance < pipeBox.bottom &&
+            birdBox.bottom - tolerance > pipeBox.top
+        );
     }
     
     // 计算当前难度系数的工具方法，确保所有地方使用相同的计算逻辑
@@ -1012,14 +1088,26 @@ class FlappyBirdGame {
         this.ctx.fillStyle = '#87CEEB';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // 绘制云朵（简单版本）
-        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-        for (let i = 0; i < 5; i++) {
-            const x = (this.canvas.width * i / 4 + (Date.now() / 10000 * this.canvas.width) % this.canvas.width) % this.canvas.width;
-            const y = this.canvas.height * 0.2 + Math.sin(Date.now() / 1000 + i) * 20;
-            const size = 30 + Math.sin(Date.now() / 1000 + i * 2) * 10;
+        // 优化云朵渲染 - 减少重复计算
+        if (this.gameState === GAME_STATE.PLAYING) {
+            // 游戏中只渲染3朵云，减少资源消耗
+            const currentTime = Date.now();
+            const cloudPositions = this.getCloudPositions(currentTime);
             
-            this.drawCloud(x, y, size);
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            for (let i = 0; i < cloudPositions.length; i++) {
+                this.drawCloud(cloudPositions[i].x, cloudPositions[i].y, cloudPositions[i].size);
+            }
+        } else {
+            // 非游戏状态保留原渲染方式
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            for (let i = 0; i < 3; i++) {
+                const x = (this.canvas.width * i / 2 + (Date.now() / 10000 * this.canvas.width) % this.canvas.width) % this.canvas.width;
+                const y = this.canvas.height * 0.2 + Math.sin(Date.now() / 1000 + i) * 20;
+                const size = 30 + Math.sin(Date.now() / 1000 + i * 2) * 10;
+                
+                this.drawCloud(x, y, size);
+            }
         }
         
         // 绘制管道
@@ -1090,8 +1178,40 @@ class FlappyBirdGame {
         this.ctx.restore();
     }
     
+    // 新增：优化计算云朵位置
+    getCloudPositions(currentTime) {
+        if (!this.cloudLastUpdate || currentTime - this.cloudLastUpdate > 100) {
+            this.cloudLastUpdate = currentTime;
+            this.cloudPositions = [];
+            
+            for (let i = 0; i < 3; i++) {
+                const x = (this.canvas.width * i / 2 + (currentTime / 10000 * this.canvas.width) % this.canvas.width) % this.canvas.width;
+                const y = this.canvas.height * 0.2 + Math.sin(currentTime / 1000 + i) * 20;
+                const size = 30 + Math.sin(currentTime / 1000 + i * 2) * 10;
+                
+                this.cloudPositions.push({ x, y, size });
+            }
+        }
+        
+        return this.cloudPositions;
+    }
+    
     // 游戏循环
     loop(timestamp) {
+        // 帧率计算
+        this.frames++;
+        if (timestamp - this.lastFpsUpdate >= 1000) {
+            this.fps = Math.round((this.frames * 1000) / (timestamp - this.lastFpsUpdate));
+            this.lastFpsUpdate = timestamp;
+            this.frames = 0;
+            this.fpsCounter.textContent = `FPS: ${this.fps}`;
+            
+            // 如果帧率低于30，输出警告
+            if (this.fps < 30) {
+                console.warn(`低帧率警告: ${this.fps} FPS`);
+            }
+        }
+        
         // 计算帧间隔
         if (!this.lastTime) {
             this.lastTime = timestamp;
@@ -1263,13 +1383,23 @@ class FlappyBirdGame {
                 this.scoreSubmitted = true;
                 document.getElementById('name-input-container').style.display = 'none';
                 
-                // 重新获取并显示更新后的排行榜数据
-                const leaderboardResponse = await fetch('/api/get-scores');
-                if (leaderboardResponse.ok) {
-                    const scores = await leaderboardResponse.json();
-                    this.leaderboardData = scores;
+                // 解析响应数据，包含了更新后的分数
+                const responseData = await response.json();
+                
+                if (responseData.scores && Array.isArray(responseData.scores)) {
+                    // 更新排行榜数据
+                    this.leaderboardData = responseData.scores;
                     // 显示当前模式的排行榜
                     this.displayLeaderboard(this.getLeaderboardForCurrentMode());
+                } else {
+                    // 如果响应中没有分数，则重新获取
+                    const leaderboardResponse = await fetch('/api/get-scores');
+                    if (leaderboardResponse.ok) {
+                        const scores = await leaderboardResponse.json();
+                        this.leaderboardData = scores;
+                        // 显示当前模式的排行榜
+                        this.displayLeaderboard(this.getLeaderboardForCurrentMode());
+                    }
                 }
             } else {
                 alert('提交分数失败，请重试');
