@@ -34,6 +34,14 @@ body {
     max-width: 100%;
     max-height: 100vh;
     overflow: hidden;
+    /* 添加硬件加速支持 */
+    will-change: transform;
+    /* 优化触摸操作 */
+    touch-action: none;
+    /* 优化动画性能 */
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    perspective: 1000px;
 }
 
 #game-canvas {
@@ -44,8 +52,15 @@ body {
     position: absolute;
     top: 0;
     left: 0;
-    /* 添加硬件加速支持 */
+    /* 开启硬件加速 */
     will-change: transform;
+    transform: translateZ(0);
+    /* 优化图像渲染 */
+    image-rendering: optimizeSpeed;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    image-rendering: pixelated;
 }
 
 .screen {

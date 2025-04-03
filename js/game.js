@@ -45,10 +45,9 @@ class FlappyBirdGame {
         this.lastFpsUpdate = 0;
         this.fps = 0;
         
-        // 高帧率支持 - 新增
-        this.targetFPS = 0; // 0表示不限制
+        // 使用帧率独立的物理计算
+        this.useFrameRateIndependentPhysics = true;
         this.physicsDeltaTime = 1000 / 60; // 基于60FPS的物理更新时间
-        this.useFrameRateIndependentPhysics = true; // 使用帧率独立的物理计算
         
         // 游戏模式
         this.gameMode = GAME_MODE.ENDLESS;
@@ -242,14 +241,6 @@ class FlappyBirdGame {
         window.addEventListener('orientationchange', () => {
             setTimeout(() => this.handleResize(), 100);
         });
-        
-        // 帧率控制按钮
-        const toggleFpsLimitBtn = document.getElementById('toggle-fps-limit');
-        if (toggleFpsLimitBtn) {
-            toggleFpsLimitBtn.addEventListener('click', () => {
-                this.toggleFrameRateLimit();
-            });
-        }
     }
     
     // 处理窗口大小改变
@@ -1159,16 +1150,6 @@ class FlappyBirdGame {
             this.frameCount = 0;
         }
         
-        // 帧率限制（如果设置了目标帧率）
-        if (this.targetFPS > 0) {
-            const targetFrameTime = 1000 / this.targetFPS;
-            if (deltaTime < targetFrameTime) {
-                // 如果运行太快，我们可以暂时跳过这一帧
-                this.animationFrameId = requestAnimationFrame((t) => this.loop(t));
-                return;
-            }
-        }
-        
         // 更新游戏状态
         this.update(deltaTime);
         
@@ -1583,29 +1564,6 @@ class FlappyBirdGame {
         
         // 根据设备类型显示不同的控制提示
         this.updateControlsDisplay();
-    }
-    
-    // 切换帧率限制
-    toggleFrameRateLimit() {
-        // 轮换帧率设置：不限制 -> 60 -> 120 -> 144 -> 不限制
-        if (this.targetFPS === 0) {
-            this.targetFPS = 60;
-        } else if (this.targetFPS === 60) {
-            this.targetFPS = 120;
-        } else if (this.targetFPS === 120) {
-            this.targetFPS = 144;
-        } else {
-            this.targetFPS = 0;
-        }
-        
-        // 更新按钮文本
-        const toggleFpsLimitBtn = document.getElementById('toggle-fps-limit');
-        if (toggleFpsLimitBtn) {
-            toggleFpsLimitBtn.textContent = this.targetFPS === 0 ? 
-                '帧率: 不限制' : `帧率: ${this.targetFPS} FPS`;
-        }
-        
-        console.log(`帧率设置已更改为: ${this.targetFPS === 0 ? '不限制' : this.targetFPS + ' FPS'}`);
     }
 }
 
