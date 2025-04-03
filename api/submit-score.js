@@ -17,11 +17,11 @@ export default async function handler(req, res) {
       url: process.env.REDIS_URL
     }).connect();
     
-    // 检查是否已存在同名用户、相同模式的所有记录
+    // 检查是否已存在同名用户、相同模式的记录
     const allScoreIds = await redis.zRange('scores', 0, -1);
-    const sameNameIds = []; // 存储所有同名用户的ID
-    let highestScore = parseInt(score); // 假设当前提交的分数最高
-    let highestScoreId = null; // 最高分对应的ID
+    let existingRecord = null;
+    let existingRecordId = null;
+    let needToUpdateScore = false;
     
     // 搜索所有分数记录，查找同名用户且相同模式
     for (const id of allScoreIds) {
@@ -32,93 +32,65 @@ export default async function handler(req, res) {
           continue; // 跳过不同日期的挑战
         }
         
-        sameNameIds.push(id);
-        const currentScore = parseInt(scoreData.score);
-        // 找出最高分及其ID
-        if (currentScore > highestScore) {
-          highestScore = currentScore;
-          highestScoreId = id;
-        } else if (currentScore === highestScore && highestScoreId === null) {
-          // 如果分数相同且尚未设置ID，则保留已有的记录ID
-          highestScoreId = id;
+        // 找到匹配的记录
+        existingRecord = scoreData;
+        existingRecordId = id;
+        
+        // 检查分数是否需要更新（只有新分数更高时才更新）
+        if (parseInt(score) > parseInt(scoreData.score)) {
+          needToUpdateScore = true;
         }
+        
+        // 找到第一个匹配记录后即跳出，避免处理多条记录
+        break;
       }
     }
     
+    const timestamp = Date.now();
+    
+    // 准备要保存的数据
+    const scoreDataToSave = {
+      name,
+      score: parseInt(score),
+      timestamp,
+      mode
+    };
+    
+    // 如果是每日挑战模式，添加日期
+    if (mode === 'challenge' && date) {
+      scoreDataToSave.date = date;
+    }
+    
+    // 计算排序分数：实际分数 * 10000000000（10位） + (10000000000 - 时间戳)
+    const sortScore = parseInt(score) * 10000000000 + (10000000000 - Math.floor(timestamp / 1000));
+    
     // 处理记录
-    if (sameNameIds.length === 0) {
-      // 没有同名记录，创建新记录
+    if (existingRecord === null) {
+      // 没有找到匹配记录，创建新记录
+      console.log(`为用户 ${name} 创建新的分数记录: ${score}分`);
+      
       const newId = Date.now().toString();
-      const timestamp = Date.now();
-      
-      // 准备要保存的数据
-      const scoreDataToSave = {
-        name,
-        score: parseInt(score),
-        timestamp,
-        mode
-      };
-      
-      // 如果是每日挑战模式，添加日期
-      if (mode === 'challenge' && date) {
-        scoreDataToSave.date = date;
-      }
-      
       await redis.hSet(`score:${newId}`, scoreDataToSave);
-      
-      // 计算排序分数：实际分数 * 10000000000（10位） + (10000000000 - 时间戳)
-      // 这样可以保证分数相同时，先提交的排在前面
-      // 时间戳从10000000000减去是为了让更早的时间戳得到更高的值
-      const sortScore = parseInt(score) * 10000000000 + (10000000000 - Math.floor(timestamp / 1000));
       
       await redis.zAdd('scores', [{
         score: sortScore,
         value: newId
       }]);
-    } else {
-      // 已有同名记录，判断新分数是否严格大于已有最高分
-      if (parseInt(score) > highestScore) {
-        // 新分数严格大于最高分，创建新记录
-        const newId = Date.now().toString();
-        const timestamp = Date.now();
-        
-        // 准备要保存的数据
-        const scoreDataToSave = {
-          name,
-          score: parseInt(score),
-          timestamp,
-          mode
-        };
-        
-        // 如果是每日挑战模式，添加日期
-        if (mode === 'challenge' && date) {
-          scoreDataToSave.date = date;
-        }
-        
-        await redis.hSet(`score:${newId}`, scoreDataToSave);
-        
-        // 计算排序分数
-        const sortScore = parseInt(score) * 10000000000 + (10000000000 - Math.floor(timestamp / 1000));
-        
-        await redis.zAdd('scores', [{
-          score: sortScore,
-          value: newId
-        }]);
-        
-        // 将新ID添加到需要保留的列表中
-        highestScoreId = newId;
-      }
-      // 如果新分数小于等于已有最高分，不创建新记录，保留现有最高分记录
+    } else if (needToUpdateScore) {
+      // 找到匹配记录且新分数更高，更新记录
+      console.log(`更新用户 ${name} 的分数记录: 从 ${existingRecord.score} 到 ${score}分`);
       
-      // 删除所有同名用户中，不是最高分的记录
-      for (const id of sameNameIds) {
-        if (id !== highestScoreId) {
-          // 从有序集合中删除
-          await redis.zRem('scores', id);
-          // 删除详细信息
-          await redis.del(`score:${id}`);
-        }
-      }
+      await redis.hSet(`score:${existingRecordId}`, scoreDataToSave);
+      
+      // 更新排序分数
+      await redis.zRem('scores', existingRecordId);
+      await redis.zAdd('scores', [{
+        score: sortScore,
+        value: existingRecordId
+      }]);
+    } else {
+      // 找到匹配记录但新分数不高于现有分数，不做任何修改
+      console.log(`用户 ${name} 提交的分数 ${score} 不高于现有记录 ${existingRecord.score}，保持不变`);
     }
     
     // 关闭连接
