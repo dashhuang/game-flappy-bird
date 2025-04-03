@@ -1078,7 +1078,8 @@ class FlappyBirdGame {
                         x: initialOffset,
                         y: this.canvas.height * 0.2 + Math.sin(j) * 20,
                         size: 30 + Math.sin(j * 2) * 10,
-                        speed: 0.3 + Math.random() * 0.2 // 每朵云速度略有不同
+                        speed: 0.3 + Math.random() * 0.2, // 每朵云速度略有不同
+                        cloudType: Math.floor(Math.random() * 3) // 为每朵云分配固定类型
                     });
                 }
             }
@@ -1094,10 +1095,14 @@ class FlappyBirdGame {
                 cloud.x = screenWidth + cloud.size * 2;
                 cloud.y = this.canvas.height * 0.2 + Math.sin(Date.now() / 1000 + i) * 20;
                 cloud.size = 30 + Math.sin(Date.now() / 1000 + i * 2) * 10;
+                // 有30%的概率改变云朵类型，让变化更自然
+                if (Math.random() < 0.3) {
+                    cloud.cloudType = Math.floor(Math.random() * 3);
+                }
             }
             
             // 绘制云朵
-            this.drawCloud(cloud.x, cloud.y, cloud.size);
+            this.drawCloud(cloud.x, cloud.y, cloud.size, cloud.cloudType);
         }
         
         // 绘制管道
@@ -1224,10 +1229,7 @@ class FlappyBirdGame {
     }
     
     // 绘制云朵
-    drawCloud(x, y, size) {
-        // 给每朵云一个稳定的随机类型（基于位置）
-        const cloudType = Math.floor((x * y) % 3);
-        
+    drawCloud(x, y, size, cloudType) {
         // 保存当前绘图状态
         this.ctx.save();
         
