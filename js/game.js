@@ -305,12 +305,8 @@ class FlappyBirdGame {
             this.showMainMenu();
         });
         
-        // 高度警告界面返回主菜单按钮
-        document.getElementById('back-to-menu-height-warning').addEventListener('click', () => {
-            document.getElementById('height-warning-screen').style.display = 'none';
-            this.resetGame();
-            this.showMainMenu();
-        });
+        // 高度警告界面返回主菜单按钮 - 使用可重用的方法
+        this.rebindHeightWarningButton();
         
         // 提交分数按钮
         document.getElementById('submit-score-button').addEventListener('click', () => {
@@ -365,6 +361,25 @@ class FlappyBirdGame {
         
         // 对于移动设备，进行额外的调整
         this.adjustForMobile();
+        
+        // 重新绑定高度警告界面返回按钮的事件监听器
+        this.rebindHeightWarningButton();
+    }
+    
+    // 重新绑定高度警告界面返回按钮事件
+    rebindHeightWarningButton() {
+        const backButton = document.getElementById('back-to-menu-height-warning');
+        if (backButton) {
+            // 移除旧的事件监听器，避免重复绑定
+            backButton.removeEventListener('click', this.backToMenuFromWarning);
+            
+            // 添加新的事件监听器
+            backButton.addEventListener('click', this.backToMenuFromWarning = () => {
+                document.getElementById('height-warning-screen').style.display = 'none';
+                this.resetGame();
+                this.showMainMenu();
+            });
+        }
     }
     
     // 检查屏幕高度是否足够
@@ -422,6 +437,9 @@ class FlappyBirdGame {
         if (heightWarningScreen) {
             heightWarningScreen.style.display = 'flex';
         }
+        
+        // 确保按钮事件监听器已绑定
+        this.rebindHeightWarningButton();
     }
     
     // 更新控制提示显示
