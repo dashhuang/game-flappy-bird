@@ -2,13 +2,39 @@ import { createClient } from 'redis';
 
 export default async function handler(req, res) {
   try {
+    // 获取请求参数
+    const mode = req.query.mode; // 'endless' 或 'challenge'
+    const date = req.query.date; // 格式: YYYY-MM-DD
+    
+    // 基于请求参数确定查询的集合键
+    let scoreKey = 'scores'; // 默认查询所有分数
+    
+    if (mode) {
+      scoreKey = `scores:${mode}`; // 查询特定模式的分数
+      
+      // 如果是挑战模式且指定了日期，查询特定日期的分数
+      if (mode === 'challenge' && date) {
+        scoreKey = `scores:${mode}:${date}`;
+      }
+    }
+    
     // 创建Redis客户端并连接
     const redis = await createClient({
       url: process.env.REDIS_URL
     }).connect();
     
-    // 获取前20名高分（修改为20名）
-    const topScoreIds = await redis.zRange('scores', 0, 19, {
+    // 检查集合是否存在（避免查询不存在的集合）
+    const keyExists = await redis.exists(scoreKey);
+    
+    // 如果集合不存在，返回空数组
+    if (!keyExists) {
+      console.log(`集合 ${scoreKey} 不存在，返回空结果`);
+      await redis.disconnect();
+      return res.status(200).json([]);
+    }
+    
+    // 直接从对应集合获取前20名高分
+    const topScoreIds = await redis.zRange(scoreKey, 0, 19, {
       REV: true // 降序排列
     });
     
@@ -36,6 +62,10 @@ export default async function handler(req, res) {
         scores.push(scoreData);
       }
     }
+    
+    // 记录日志以便调试
+    console.log(`API请求: /api/get-scores ${scoreKey !== 'scores' ? `(${scoreKey})` : ''}`);
+    console.log(`返回 ${scores.length} 条记录`);
     
     // 关闭连接
     await redis.disconnect();
