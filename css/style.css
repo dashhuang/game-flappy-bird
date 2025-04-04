@@ -692,3 +692,45 @@ button:active {
         height: -webkit-fill-available;
     }
 }
+
+/* 高度警告界面样式 */
+#height-warning-screen {
+    z-index: 30;
+    display: none;
+    background-color: rgba(0, 0, 0, 0.8);
+}
+
+.warning-content {
+    text-align: center;
+    background-color: #fff;
+    border-radius: 15px;
+    padding: 20px;
+    max-width: 80%;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+}
+
+.warning-content h2 {
+    color: #E74C3C;
+    margin-bottom: 15px;
+}
+
+.warning-content p {
+    margin-bottom: 10px;
+    color: #333;
+}
+
+#back-to-menu-height-warning {
+    margin-top: 20px;
+    padding: 10px 20px;
+    background-color: #2980B9;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.3s;
+}
+
+#back-to-menu-height-warning:hover {
+    background-color: #3498DB;
+}

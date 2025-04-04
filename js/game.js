@@ -305,6 +305,13 @@ class FlappyBirdGame {
             this.showMainMenu();
         });
         
+        // 高度警告界面返回主菜单按钮
+        document.getElementById('back-to-menu-height-warning').addEventListener('click', () => {
+            document.getElementById('height-warning-screen').style.display = 'none';
+            this.resetGame();
+            this.showMainMenu();
+        });
+        
         // 提交分数按钮
         document.getElementById('submit-score-button').addEventListener('click', () => {
             this.submitScore();
@@ -341,6 +348,9 @@ class FlappyBirdGame {
         const viewWidth = window.innerWidth;
         const viewHeight = window.innerHeight;
         
+        // 检查屏幕高度是否足够
+        this.checkScreenHeight(viewHeight);
+        
         // 设置canvas尺寸
         this.canvas.width = viewWidth;
         this.canvas.height = viewHeight;
@@ -355,6 +365,63 @@ class FlappyBirdGame {
         
         // 对于移动设备，进行额外的调整
         this.adjustForMobile();
+    }
+    
+    // 检查屏幕高度是否足够
+    checkScreenHeight(height) {
+        const MIN_HEIGHT = 500; // 最小高度要求，单位：像素
+        
+        // 如果高度不足
+        if (height < MIN_HEIGHT) {
+            console.log(`屏幕高度不足: ${height}像素 < ${MIN_HEIGHT}像素最低要求`);
+            
+            // 如果正在游戏中，则停止游戏并显示警告
+            if (this.gameState === GAME_STATE.PLAYING) {
+                this.showHeightWarning();
+            } 
+            // 如果未在游戏中但准备开始游戏，则显示警告并阻止游戏开始
+            else if (this.gameState === GAME_STATE.MENU && 
+                     document.getElementById('start-screen').style.display !== 'none') {
+                this.showHeightWarning();
+            }
+            
+            return false;
+        }
+        
+        return true;
+    }
+    
+    // 显示高度不足警告
+    showHeightWarning() {
+        // 停止当前游戏
+        this.gameState = GAME_STATE.MENU;
+        
+        // 隐藏所有其他界面
+        this.startScreen.style.display = 'none';
+        this.gameOverScreen.style.display = 'none';
+        document.getElementById('victory-screen').style.display = 'none';
+        this.scoreDisplay.style.display = 'none';
+        
+        // 显示高度警告界面
+        const heightWarningScreen = document.getElementById('height-warning-screen');
+        
+        // 智能判断设备类型，显示相应提示
+        const desktopTip = document.getElementById('desktop-height-tip');
+        const mobileTip = document.getElementById('mobile-height-tip');
+        
+        if (this.isMobile) {
+            // 移动设备：隐藏桌面提示，显示移动提示
+            if (desktopTip) desktopTip.style.display = 'none';
+            if (mobileTip) mobileTip.style.display = 'block';
+        } else {
+            // 桌面设备：显示桌面提示，隐藏移动提示
+            if (desktopTip) desktopTip.style.display = 'block';
+            if (mobileTip) mobileTip.style.display = 'none';
+        }
+        
+        if (heightWarningScreen) {
+            heightWarningScreen.style.display = 'flex';
+        }
     }
     
     // 更新控制提示显示
@@ -438,10 +505,16 @@ class FlappyBirdGame {
     
     // 开始游戏
     startGame() {
+        // 检查屏幕高度是否足够
+        if (!this.checkScreenHeight(window.innerHeight)) {
+            return; // 如果高度不足，不启动游戏
+        }
+        
         this.gameState = GAME_STATE.PLAYING;
         this.startScreen.style.display = 'none';
         this.gameOverScreen.style.display = 'none';
         document.getElementById('victory-screen').style.display = 'none';
+        document.getElementById('height-warning-screen').style.display = 'none';
         this.scoreDisplay.style.display = 'block';
         
         // 记录游戏开始时的最高分 - 基于当前模式
