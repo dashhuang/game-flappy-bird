@@ -61,7 +61,11 @@ app.get('/api/get-scores', (req, res) => {
   // 获取北京时间的日期字符串
   const getBeijingDate = () => {
     const now = new Date();
-    const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+    // 获取当前UTC时间
+    const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
+    // 转换为北京时间 (UTC+8)
+    const beijingTime = new Date(utcTime + (8 * 3600000));
+    
     const year = beijingTime.getUTCFullYear();
     const month = String(beijingTime.getUTCMonth() + 1).padStart(2, '0');
     const day = String(beijingTime.getUTCDate()).padStart(2, '0');
@@ -70,8 +74,12 @@ app.get('/api/get-scores', (req, res) => {
   
   const today = getBeijingDate();
   
-  // 模拟排行榜数据 (只包含3、5、10分)
-  const mockScores = [
+  // 获取请求参数
+  const mode = req.query.mode; // 'endless' 或 'challenge'
+  const date = req.query.date || today; // 默认使用今天的日期
+  
+  // 模拟排行榜数据 
+  const mockScoresAll = [
     // 无尽模式数据
     { name: "小十", score: "10", mode: "endless", timestamp: Date.now() - 1000 },
     { name: "小五", score: "5", mode: "endless", timestamp: Date.now() - 5000 },
@@ -86,7 +94,29 @@ app.get('/api/get-scores', (req, res) => {
     { name: "3", score: "7", mode: "challenge", date: today, timestamp: Date.now() - 9000 }
   ];
   
-  res.status(200).json(mockScores);
+  // 根据请求参数过滤数据
+  let filteredScores = mockScoresAll;
+  
+  // 如果指定了模式，按模式过滤
+  if (mode) {
+    filteredScores = filteredScores.filter(score => score.mode === mode);
+    
+    // 如果是挑战模式且指定了日期，则按日期过滤
+    if (mode === 'challenge' && date) {
+      filteredScores = filteredScores.filter(score => score.date === date);
+    }
+  }
+  
+  // 根据分数排序（降序）
+  filteredScores.sort((a, b) => parseInt(b.score) - parseInt(a.score));
+  
+  // 限制为最多20条记录
+  filteredScores = filteredScores.slice(0, 20);
+  
+  console.log(`API请求: /api/get-scores${mode ? '?mode=' + mode : ''}${mode === 'challenge' && date ? '&date=' + date : ''}`);
+  console.log(`返回${filteredScores.length}条记录`);
+  
+  res.status(200).json(filteredScores);
 });
 
 // 模拟提交分数API

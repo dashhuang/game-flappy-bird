@@ -149,8 +149,8 @@ class FlappyBirdGame {
         this.highScore = localStorage.getItem('flappyBirdHighScore') || 0;
         this.initialHighScore = this.highScore;
         this.leaderboardData = [];
-        // 新增：存储排行榜墓碑位置信息
-        this.tombstones = [];
+        // 新增：存储排行榜旗子位置信息
+        this.flags = [];
         this.scoreThreshold = 10; // 修改阈值从2改为10
         this.leaderboardUpdated = false;
         this.scoreSubmitted = false;
@@ -244,7 +244,7 @@ class FlappyBirdGame {
             // 如果是从每日挑战切换过来，重置相关数据
             if (wasInDailyChallenge) {
                 // 清空旗子数据，强制重新加载
-                this.tombstones = [];
+                this.flags = [];
                 this.leaderboardUpdated = false;
                 
                 // 立即加载无尽模式排行榜并强制处理，确保旗子正确显示
@@ -268,7 +268,7 @@ class FlappyBirdGame {
             
             // 如果是从无尽模式切换过来，强制加载每日挑战排行榜
             if (wasInEndlessMode) {
-                // tombstones和leaderboardUpdated已在resetDailyChallengeSeed重置
+                // flags和leaderboardUpdated已在resetDailyChallengeSeed重置
                 // 立即加载每日挑战排行榜并强制处理
                 this.loadLeaderboardInBackground(true);
             }
@@ -305,8 +305,12 @@ class FlappyBirdGame {
             this.showMainMenu();
         });
         
-        // 高度警告界面返回主菜单按钮 - 使用可重用的方法
-        this.rebindHeightWarningButton();
+        // 高度警告界面返回主菜单按钮
+        document.getElementById('back-to-menu-height-warning').addEventListener('click', () => {
+            document.getElementById('height-warning-screen').style.display = 'none';
+            this.resetGame();
+            this.showMainMenu();
+        });
         
         // 提交分数按钮
         document.getElementById('submit-score-button').addEventListener('click', () => {
@@ -344,54 +348,28 @@ class FlappyBirdGame {
         const viewWidth = window.innerWidth;
         const viewHeight = window.innerHeight;
         
-        // 检查屏幕高度是否足够 - 会处理高度恢复的情况
-        const heightIsAdequate = this.checkScreenHeight(viewHeight);
+        // 检查屏幕高度是否足够
+        this.checkScreenHeight(viewHeight);
         
         // 设置canvas尺寸
         this.canvas.width = viewWidth;
         this.canvas.height = viewHeight;
         
         // 重新计算鸟的位置
-        if (this.bird) {
-            this.bird.x = viewWidth / 3;
-            
-            // 如果在菜单状态，重置鸟的位置
-            if (this.gameState === GAME_STATE.MENU) {
-                this.bird.y = viewHeight / 2;
-            }
+        this.bird.x = viewWidth / 3;
+        
+        // 如果在菜单状态，重置鸟的位置
+        if (this.gameState === GAME_STATE.MENU) {
+            this.bird.y = viewHeight / 2;
         }
         
         // 对于移动设备，进行额外的调整
         this.adjustForMobile();
-        
-        // 如果高度足够，确保游戏交互功能正常
-        if (heightIsAdequate) {
-            // 重新检查所有按钮和事件监听
-            this.updateControlsDisplay();
-        }
-    }
-    
-    // 重新绑定高度警告界面返回按钮事件
-    rebindHeightWarningButton() {
-        const backButton = document.getElementById('back-to-menu-height-warning');
-        if (backButton) {
-            // 移除旧的事件监听器，避免重复绑定
-            backButton.removeEventListener('click', this.backToMenuFromWarning);
-            
-            // 添加新的事件监听器
-            backButton.addEventListener('click', this.backToMenuFromWarning = () => {
-                document.getElementById('height-warning-screen').style.display = 'none';
-                this.resetGame();
-                this.showMainMenu();
-            });
-        }
     }
     
     // 检查屏幕高度是否足够
     checkScreenHeight(height) {
         const MIN_HEIGHT = 500; // 最小高度要求，单位：像素
-        const heightWarningScreen = document.getElementById('height-warning-screen');
-        const isWarningVisible = heightWarningScreen && heightWarningScreen.style.display === 'flex';
         
         // 如果高度不足
         if (height < MIN_HEIGHT) {
@@ -408,19 +386,6 @@ class FlappyBirdGame {
             }
             
             return false;
-        } 
-        // 高度恢复正常，但警告界面仍在显示
-        else if (isWarningVisible) {
-            console.log(`屏幕高度已恢复正常: ${height}像素`);
-            
-            // 隐藏高度警告界面
-            heightWarningScreen.style.display = 'none';
-            
-            // 恢复到主菜单
-            this.resetGame();
-            this.showMainMenu();
-            
-            return true;
         }
         
         return true;
@@ -457,9 +422,6 @@ class FlappyBirdGame {
         if (heightWarningScreen) {
             heightWarningScreen.style.display = 'flex';
         }
-        
-        // 确保按钮事件监听器已绑定
-        this.rebindHeightWarningButton();
     }
     
     // 更新控制提示显示
@@ -628,7 +590,11 @@ class FlappyBirdGame {
     // 获取北京时间（GMT+8）的日期字符串（YYYY-MM-DD格式）
     getCurrentChallengeDate() {
         const now = new Date();
-        const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+        // 获取当前UTC时间
+        const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
+        // 转换为北京时间 (UTC+8)
+        const beijingTime = new Date(utcTime + (8 * 3600000));
+        
         const year = beijingTime.getUTCFullYear();
         const month = String(beijingTime.getUTCMonth() + 1).padStart(2, '0');
         const day = String(beijingTime.getUTCDate()).padStart(2, '0');
@@ -652,7 +618,7 @@ class FlappyBirdGame {
         this.seededRandom = this.mulberry32(this.dailyChallengeSeed);
         
         // 重置旗子数据，确保加载正确的每日挑战旗子
-        this.tombstones = [];
+        this.flags = [];
         // 重置排行榜更新标志，确保可以加载新数据
         this.leaderboardUpdated = false;
     }
@@ -878,31 +844,8 @@ class FlappyBirdGame {
             return [];
         }
         
-        // 根据当前模式筛选排行榜数据
-        let filteredData = this.leaderboardData.filter(entry => 
-            entry.mode === (this.gameMode === GAME_MODE.ENDLESS ? 'endless' : 'challenge')
-        );
-        
-        // 如果是每日挑战模式，还需要按日期筛选
-        if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
-            filteredData = filteredData.filter(entry => {
-                // 添加调试日志
-                if (this.currentChallengeDate && entry.date !== this.currentChallengeDate) {
-                    console.log(`日期不匹配: 需要${this.currentChallengeDate}, 实际${entry.date || '未设置'}`);
-                }
-                return entry.date === this.currentChallengeDate;
-            });
-            
-            // 如果日期筛选后没有数据，可能是API中没有date字段，取消日期筛选
-            if (filteredData.length === 0) {
-                console.log(`警告: 每日挑战模式按日期筛选后没有数据，尝试使用所有挑战模式数据`);
-                filteredData = this.leaderboardData.filter(entry => 
-                    entry.mode === 'challenge'
-                );
-            }
-        }
-        
-        return filteredData;
+        // 因为API返回的数据已经按模式和日期过滤，直接返回即可
+        return this.leaderboardData;
     }
     
     // 检查分数是否能进入前20名
@@ -974,9 +917,9 @@ class FlappyBirdGame {
             this.loadLeaderboardInBackground(true);
         } else {
             // 重置旗子的放置状态，使它们能在新游戏中再次生成
-            if (this.tombstones && this.tombstones.length > 0) {
-                this.tombstones.forEach(tombstone => {
-                    tombstone.placed = false;
+            if (this.flags && this.flags.length > 0) {
+                this.flags.forEach(flag => {
+                    flag.placed = false;
                 });
             }
         }
@@ -1137,9 +1080,9 @@ class FlappyBirdGame {
         
         // 移除离开屏幕的管道
         this.pipes = this.pipes.filter(pipe => {
-            // 如果是带有墓碑的管道，需要考虑墓碑的宽度
-            if (pipe.isTop && pipe.hasTombstone) {
-                // 墓碑在管道右侧60像素，加上墓碑自身宽度（约30像素）
+            // 如果是带有旗子的管道，需要考虑旗子的宽度
+            if (pipe.isTop && pipe.hasFlag) {
+                // 旗子在管道右侧60像素，加上旗子自身宽度（约30像素）
                 return pipe.x + this.PIPE_WIDTH + 90 > 0;
             }
             // 普通管道正常移除
@@ -1314,37 +1257,37 @@ class FlappyBirdGame {
 
         // 移除条件日志
         // if (pipeNumber >= 8) { 
-        //     console.log(`【调试】(Conditional >= 8 Log Check) 即将生成第 ${pipeNumber} 对管道。当前墓碑数据:`, this.tombstones ? JSON.stringify(this.tombstones) : '墓碑数据不存在');
+        //     console.log(`【调试】(Conditional >= 8 Log Check) 即将生成第 ${pipeNumber} 对管道。当前旗子数据:`, this.flags ? JSON.stringify(this.flags) : '旗子数据不存在');
         // }
 
-        let hasTombstone = false;
-        let tombstoneName = '';
-        let tombstoneColor = '#E74C3C';
+        let hasFlag = false;
+        let flagName = '';
+        let flagColor = '#E74C3C';
 
-        if (this.tombstones && this.tombstones.length > 0) {
+        if (this.flags && this.flags.length > 0) {
             // 移除调试日志
             // if (pipeNumber === 10) {
-            //     console.log(`【调试】尝试为第 ${pipeNumber} 对管道查找旗子。当前墓碑数据（确认查找前）:`, JSON.stringify(this.tombstones));
+            //     console.log(`【调试】尝试为第 ${pipeNumber} 对管道查找旗子。当前旗子数据（确认查找前）:`, JSON.stringify(this.flags));
             // }
             
-            const tombstone = this.tombstones.find(t => t.score === pipeNumber && !t.placed);
+            const flag = this.flags.find(t => t.score === pipeNumber && !t.placed);
             
             // 移除调试日志
             // if (pipeNumber === 10) {
-            //     console.log(`【调试】查找第 ${pipeNumber} 对管道的旗子结果:`, tombstone ? JSON.stringify(tombstone) : '未找到');
+            //     console.log(`【调试】查找第 ${pipeNumber} 对管道的旗子结果:`, flag ? JSON.stringify(flag) : '未找到');
             // }
             
-            if (tombstone) {
-                hasTombstone = true;
-                tombstoneName = tombstone.name;
-                tombstoneColor = tombstone.color;
-                tombstone.placed = true;
-                console.log(`【调试】为第${pipeNumber}对管道添加旗子，玩家:"${tombstoneName}"，分数:${tombstone.score}`); // 保留这个有用的日志
+            if (flag) {
+                hasFlag = true;
+                flagName = flag.name;
+                flagColor = flag.color;
+                flag.placed = true;
+                console.log(`【调试】为第${pipeNumber}对管道添加旗子，玩家:"${flagName}"，分数:${flag.score}`); // 保留这个有用的日志
             }
         } else {
             // 移除调试日志
             // if (pipeNumber >= 8) {
-            //     console.log(`【调试】无法查找旗子，因为 this.tombstones 不存在或为空。 PipeNumber: ${pipeNumber}`);
+            //     console.log(`【调试】无法查找旗子，因为 this.flags 不存在或为空。 PipeNumber: ${pipeNumber}`);
             // }
         }
         
@@ -1357,9 +1300,9 @@ class FlappyBirdGame {
             passed: false,
             isTop: true,
             pipeNumber: pipeNumber,
-            hasTombstone: hasTombstone,
-            tombstoneName: tombstoneName,
-            tombstoneColor: tombstoneColor // 传递颜色信息
+            hasFlag: hasFlag,
+            flagName: flagName,
+            flagColor: flagColor // 传递颜色信息
         });
         
         // 下管道
@@ -1686,7 +1629,15 @@ class FlappyBirdGame {
         const dateInfo = this.gameMode === GAME_MODE.DAILY_CHALLENGE ? ` (${this.currentChallengeDate})` : '';
         console.log(`加载${currentMode}${dateInfo}排行榜数据...`);
         
-        fetch('/api/get-scores')
+        // 构建API URL，添加模式和日期参数
+        let apiUrl = '/api/get-scores?mode=' + (this.gameMode === GAME_MODE.ENDLESS ? 'endless' : 'challenge');
+        
+        // 如果是每日挑战模式，添加日期参数
+        if (this.gameMode === GAME_MODE.DAILY_CHALLENGE && this.currentChallengeDate) {
+            apiUrl += `&date=${this.currentChallengeDate}`;
+        }
+        
+        fetch(apiUrl)
             .then(response => {
                 if (!response.ok) {
                     console.error("获取排行榜数据失败，状态码:", response.status);
@@ -1697,12 +1648,12 @@ class FlappyBirdGame {
             .then(data => {
                 this.leaderboardData = data;
                 
-                // 显示筛选后的数据条数
-                const filteredData = this.getLeaderboardForCurrentMode();
+                // 现在返回的数据已经按模式和日期筛选，不需要再次筛选
+                const filteredData = data;
                 console.log(`${currentMode}${dateInfo}排行榜数据加载成功，共 ${filteredData.length} 条记录`);
                 
                 if (this.gameState !== GAME_STATE.PLAYING || forceProcess) {
-                    this.processLeaderboardForTombstones();
+                    this.processLeaderboardForFlags();
                     
                     // 添加：在游戏结束或强制处理时，显示排行榜数据
                     if (this.gameState === GAME_STATE.GAME_OVER || forceProcess) {
@@ -1713,11 +1664,10 @@ class FlappyBirdGame {
                 }
             })
             .catch(error => {
-                console.error("加载排行榜失败:", error);
-                this.leaderboardData = [];
+                console.error('加载排行榜数据失败:', error);
                 
-                // 添加：出错时也要更新排行榜显示（显示无数据状态）
-                if (this.gameState === GAME_STATE.GAME_OVER || forceProcess) {
+                // 错误处理：显示空排行榜
+                if (this.gameState === GAME_STATE.GAME_OVER) {
                     this.displayLeaderboard([]);
                 }
             });
@@ -2074,8 +2024,8 @@ class FlappyBirdGame {
         this.loadLeaderboardInBackground(true);
     }
     
-    // 处理排行榜数据，创建墓碑位置信息
-    processLeaderboardForTombstones() {
+    // 处理排行榜数据，创建旗子位置信息
+    processLeaderboardForFlags() {
         const currentMode = this.gameMode === GAME_MODE.ENDLESS ? '无尽模式' : '每日挑战';
         const dateInfo = this.gameMode === GAME_MODE.DAILY_CHALLENGE ? ` (${this.currentChallengeDate})` : '';
         console.log(`开始为${currentMode}${dateInfo}创建旗子数据...`);
@@ -2085,9 +2035,10 @@ class FlappyBirdGame {
             return;
         }
         
-        this.tombstones = [];
+        this.flags = [];
         
-        const modeLeaderboard = this.getLeaderboardForCurrentMode();
+        // 获取当前模式的排行榜数据（现在直接使用API返回的数据）
+        const modeLeaderboard = this.leaderboardData;
         if (modeLeaderboard.length === 0) {
             console.warn(`${currentMode}${dateInfo}没有排行榜数据，不创建旗子`);
             return;
@@ -2113,7 +2064,7 @@ class FlappyBirdGame {
             
             const scoreInt = parseInt(score);
             
-            this.tombstones.push({
+            this.flags.push({
                 score: scoreInt,
                 name: name,
                 placed: false,
@@ -2121,7 +2072,7 @@ class FlappyBirdGame {
             });
         }
         
-        console.log(`为${currentMode}${dateInfo}创建了 ${this.tombstones.length} 个旗子数据`);
+        console.log(`为${currentMode}${dateInfo}创建了 ${this.flags.length} 个旗子数据`);
     }
     
     // 绘制地面
@@ -2135,18 +2086,18 @@ class FlappyBirdGame {
         this.ctx.fillRect(0, this.canvas.height - this.GROUND_HEIGHT, this.canvas.width, 15);
         
         // 绘制旗子（如果有）
-        this.drawFlags(); // 调用新的函数名
+        this.drawFlags();
     }
     
-    // 绘制旗子 (替代 drawTombstones)
-    drawFlags() { // 重命名函数更贴切
+    // 绘制旗子 
+    drawFlags() {
         if (!this.pipes || this.pipes.length === 0) {
             return;
         }
         
         let flagsDrawn = 0;
         for (const pipe of this.pipes) {
-            if (!pipe.isTop || !pipe.hasTombstone) {
+            if (!pipe.isTop || !pipe.hasFlag) {
                 continue;
             }
             
@@ -2159,7 +2110,7 @@ class FlappyBirdGame {
                 }
             }
             
-            // 计算墓碑位置（管道之后的位置）
+            // 计算旗子位置（管道之后的位置）
             let flagX = pipe.x + this.PIPE_WIDTH + 60; // 管道后方60像素
             
             // 如果旗子在屏幕外，跳过绘制
@@ -2180,7 +2131,7 @@ class FlappyBirdGame {
             this.ctx.fill();
             
             // 绘制旗子（三角形）
-            this.ctx.fillStyle = pipe.tombstoneColor || '#E74C3C'; // 使用存储的颜色，提供默认值
+            this.ctx.fillStyle = pipe.flagColor || '#E74C3C'; // 使用存储的颜色，提供默认值
             this.ctx.beginPath();
             this.ctx.moveTo(flagX, this.canvas.height - this.GROUND_HEIGHT - 45 + 5);
             this.ctx.lineTo(flagX + 30, this.canvas.height - this.GROUND_HEIGHT - 45 + 5 + 20/2);
@@ -2198,17 +2149,12 @@ class FlappyBirdGame {
             this.ctx.fillStyle = '#666666'; // 更淡的灰色
             this.ctx.font = 'bold 14px Arial';
             this.ctx.textAlign = 'center';
-            this.ctx.fillText(pipe.tombstoneName, flagX + 20, this.canvas.height - this.GROUND_HEIGHT - 45 + 5 + 20 + 15);
+            this.ctx.fillText(pipe.flagName, flagX + 20, this.canvas.height - this.GROUND_HEIGHT - 45 + 5 + 20 + 15);
             
             flagsDrawn++;
         }
         
-        // 移除这个日志，保留【调试】当前屏幕绘制了...更佳
-        // if (flagsDrawn > 0 && (!this.lastFlagsDrawn || this.lastFlagsDrawn !== flagsDrawn)) {
-        //     console.log(`【调试】当前屏幕绘制了${flagsDrawn}个旗子`); 
-        //     this.lastFlagsDrawn = flagsDrawn;
-        // }
-        // 保留更详细的日志
+        // 屏幕上旗子数量变化时输出日志
         if (flagsDrawn > 0 && (!this.lastFlagsDrawn || this.lastFlagsDrawn !== flagsDrawn)) {
             console.log(`【调试】当前屏幕绘制了${flagsDrawn}个旗子`);
             this.lastFlagsDrawn = flagsDrawn;
