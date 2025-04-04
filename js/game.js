@@ -344,26 +344,31 @@ class FlappyBirdGame {
         const viewWidth = window.innerWidth;
         const viewHeight = window.innerHeight;
         
-        // 检查屏幕高度是否足够
-        this.checkScreenHeight(viewHeight);
+        // 检查屏幕高度是否足够 - 会处理高度恢复的情况
+        const heightIsAdequate = this.checkScreenHeight(viewHeight);
         
         // 设置canvas尺寸
         this.canvas.width = viewWidth;
         this.canvas.height = viewHeight;
         
         // 重新计算鸟的位置
-        this.bird.x = viewWidth / 3;
-        
-        // 如果在菜单状态，重置鸟的位置
-        if (this.gameState === GAME_STATE.MENU) {
-            this.bird.y = viewHeight / 2;
+        if (this.bird) {
+            this.bird.x = viewWidth / 3;
+            
+            // 如果在菜单状态，重置鸟的位置
+            if (this.gameState === GAME_STATE.MENU) {
+                this.bird.y = viewHeight / 2;
+            }
         }
         
         // 对于移动设备，进行额外的调整
         this.adjustForMobile();
         
-        // 重新绑定高度警告界面返回按钮的事件监听器
-        this.rebindHeightWarningButton();
+        // 如果高度足够，确保游戏交互功能正常
+        if (heightIsAdequate) {
+            // 重新检查所有按钮和事件监听
+            this.updateControlsDisplay();
+        }
     }
     
     // 重新绑定高度警告界面返回按钮事件
@@ -385,6 +390,8 @@ class FlappyBirdGame {
     // 检查屏幕高度是否足够
     checkScreenHeight(height) {
         const MIN_HEIGHT = 500; // 最小高度要求，单位：像素
+        const heightWarningScreen = document.getElementById('height-warning-screen');
+        const isWarningVisible = heightWarningScreen && heightWarningScreen.style.display === 'flex';
         
         // 如果高度不足
         if (height < MIN_HEIGHT) {
@@ -401,6 +408,19 @@ class FlappyBirdGame {
             }
             
             return false;
+        } 
+        // 高度恢复正常，但警告界面仍在显示
+        else if (isWarningVisible) {
+            console.log(`屏幕高度已恢复正常: ${height}像素`);
+            
+            // 隐藏高度警告界面
+            heightWarningScreen.style.display = 'none';
+            
+            // 恢复到主菜单
+            this.resetGame();
+            this.showMainMenu();
+            
+            return true;
         }
         
         return true;
