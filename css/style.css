@@ -468,6 +468,8 @@ button:active {
 
 #endless-mode-button {
     background-color: #2196F3;
+    font-size: 16px;
+    padding: 12px;
 }
 
 #endless-mode-button:hover {
@@ -476,10 +478,15 @@ button:active {
 
 #daily-challenge-button {
     background-color: #ff9800;
+    font-size: 20px;
+    padding: 18px;
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(255, 152, 0, 0.4);
 }
 
 #daily-challenge-button:hover {
     background-color: #e68a00;
+    transform: scale(1.15);
 }
 
 .mode-description {

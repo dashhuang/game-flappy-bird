@@ -317,6 +317,17 @@ class FlappyBirdGame {
             this.submitScore();
         });
         
+        // 玩家名字输入框添加回车键监听
+        const playerNameInput = document.getElementById('player-name');
+        if (playerNameInput) {
+            playerNameInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault(); // 阻止默认行为
+                    this.submitScore(); // 提交分数
+                }
+            });
+        }
+        
         // 关闭更新通知按钮
         const closeNotificationButton = document.getElementById('close-notification');
         if (closeNotificationButton) {
