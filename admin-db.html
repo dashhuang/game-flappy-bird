@@ -213,6 +213,22 @@
             </div>
             
             <div class="panel">
+                <h2>数据加载选项</h2>
+                <div style="margin-bottom: 15px;">
+                    <label for="dataLimit" style="font-weight: bold;">数据加载限制:</label>
+                    <select id="dataLimit" style="margin-left: 10px; padding: 8px; border-radius: 4px;">
+                        <option value="50">50条（推荐用于测试）</option>
+                        <option value="100" selected>100条（推荐）</option>
+                        <option value="200">200条（可能较慢）</option>
+                        <option value="500">500条（可能超时）</option>
+                    </select>
+                    <div style="margin-top: 10px; font-size: 12px; color: #666;">
+                        注意：加载太多数据可能导致API超时。如果出现超时错误，请减少加载数量。
+                    </div>
+                </div>
+            </div>
+            
+            <div class="panel">
                 <h2>数据库概览</h2>
                 <div class="db-info">
                     <div class="db-stat">
@@ -378,10 +394,23 @@
             try {
                 showResult('正在加载数据...');
                 
-                const response = await fetch('/api/admin-get-all-records');
+                // 获取用户选择的数据限制
+                const limit = document.getElementById('dataLimit').value;
+                console.log(`加载数据，限制: ${limit}条记录`);
+                
+                // 使用自定义错误处理的fetch函数
+                const response = await fetchWithTimeout(`/api/admin-get-all-records?limit=${limit}`, {
+                    timeout: 25000 // 25秒超时，大于服务器端超时
+                });
                 
                 // 首先获取响应文本
                 const responseText = await response.text();
+                
+                // 检查响应文本是否包含部署错误信息
+                if (responseText.includes('error occurred with your deployment') || 
+                    responseText.includes('FUNCTION_INVOCATION_TIMEOUT')) {
+                    throw new Error(`服务器超时错误：API执行时间过长。请尝试减少数据加载量（当前: ${limit}条）。`);
+                }
                 
                 // 尝试解析为JSON
                 let data;
@@ -406,7 +435,12 @@
                     // 应用过滤和排序
                     applyFilters();
                     
-                    showResult(`成功加载 ${allRecords.length} 条记录！`, 'success');
+                    let successMessage = `成功加载 ${allRecords.length} 条记录！`;
+                    if (data.limitReached) {
+                        successMessage += ` (已达到限制${limit}条，可能有更多数据未显示)`;
+                    }
+                    
+                    showResult(successMessage, 'success');
                 } else {
                     let errorMessage = '未知错误';
                     if (data.error) errorMessage = data.error;
@@ -417,6 +451,29 @@
                 }
             } catch (error) {
                 showResult(`加载数据出错: ${error.message}`, 'error');
+            }
+        }
+        
+        // 带超时的fetch函数
+        async function fetchWithTimeout(resource, options = {}) {
+            const { timeout = 15000 } = options;
+            
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), timeout);
+            
+            try {
+                const response = await fetch(resource, {
+                    ...options,
+                    signal: controller.signal
+                });
+                clearTimeout(id);
+                return response;
+            } catch (error) {
+                clearTimeout(id);
+                if (error.name === 'AbortError') {
+                    throw new Error('请求超时，服务器响应时间过长');
+                }
+                throw error;
             }
         }
         
