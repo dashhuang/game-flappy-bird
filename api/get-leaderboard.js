@@ -27,11 +27,15 @@ export default async function handler(req, res) {
           id: id,
           playerName: scoreData.name || '未知玩家',
           score: scoreData.score || '0',
+          timestamp: scoreData.timestamp ? parseInt(scoreData.timestamp) : 0,
           date: scoreData.timestamp ? new Date(parseInt(scoreData.timestamp)).toISOString() : new Date().toISOString(),
           mode: scoreData.mode || 'endless'
         });
       }
     }
+    
+    // 按时间戳降序排列（从新到旧）
+    leaderboardData.sort((a, b) => b.timestamp - a.timestamp);
     
     // 记录API调用日志
     console.log(`管理员API请求: /api/get-leaderboard`);
