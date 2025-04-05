@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据库记录管理</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .nav-links {
+            margin-bottom: 20px;
+        }
+        .nav-links a {
+            margin-right: 15px;
+            text-decoration: none;
+            color: #3498db;
+            font-weight: bold;
+        }
+        .panel {
+            background: white;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .db-info {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .db-stat {
+            flex: 1;
+            min-width: 150px;
+            padding: 15px;
+            background: #e8f4f8;
+            border-radius: 4px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .db-stat h4 {
+            margin-top: 0;
+            color: #2980b9;
+        }
+        .db-stat p {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 5px 0;
+        }
+        .db-stat small {
+            color: #7f8c8d;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 14px;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+            position: sticky;
+            top: 0;
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        .table-container {
+            max-height: 600px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        .search-bar {
+            margin-bottom: 15px;
+            display: flex;
+            gap: 10px;
+        }
+        .search-bar input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        button, .btn {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover, .btn:hover {
+            background-color: #2980b9;
+        }
+        .btn-danger {
+            background-color: #e74c3c;
+        }
+        .btn-danger:hover {
+            background-color: #c0392b;
+        }
+        .record-count {
+            margin: 15px 0;
+            font-weight: bold;
+        }
+        .filter-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: white;
+        }
+        .filter-label {
+            font-weight: bold;
+            margin-right: 5px;
+        }
+        .json-view {
+            background-color: #f8f8f8;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .hidden {
+            display: none;
+        }
+        #loginScreen {
+            text-align: center;
+            padding: 50px;
+        }
+        #adminPanel {
+            display: none;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="loginScreen">
+            <h2>管理员登录</h2>
+            <p>请输入管理员密码以访问数据库记录</p>
+            <input type="password" id="adminPassword" placeholder="请输入管理员密码" style="padding: 10px; width: 250px;">
+            <button id="loginButton" style="padding: 10px 20px;">登录</button>
+            <div id="loginResult" class="result" style="display: none;"></div>
+        </div>
+        
+        <div id="adminPanel">
+            <header>
+                <h1>数据库记录管理</h1>
+                <div>
+                    <button id="refreshBtn">刷新数据</button>
+                </div>
+            </header>
+            
+            <div class="nav-links">
+                <a href="admin.html">返回排行榜管理</a>
+            </div>
+            
+            <div class="panel">
+                <h2>数据库概览</h2>
+                <div class="db-info">
+                    <div class="db-stat">
+                        <h4>总记录数</h4>
+                        <p id="totalRecords">0</p>
+                        <small>scores集合中的记录</small>
+                    </div>
+                    <div class="db-stat">
+                        <h4>总键数</h4>
+                        <p id="totalKeys">0</p>
+                        <small>数据库中的所有键</small>
+                    </div>
+                    <div class="db-stat">
+                        <h4>集合</h4>
+                        <p id="collectionsCount">0</p>
+                        <small id="collectionsDetail">-</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <h2>所有记录</h2>
+                <div class="controls">
+                    <div class="search-bar">
+                        <input type="text" id="searchInput" placeholder="搜索玩家名称、ID或分数...">
+                    </div>
+                    <button id="clearSearchBtn">清除搜索</button>
+                </div>
+                
+                <div class="filter-controls">
+                    <span class="filter-label">排序方式:</span>
+                    <select id="sortOption">
+                        <option value="time-desc">按时间（新到旧）</option>
+                        <option value="time-asc">按时间（旧到新）</option>
+                        <option value="score-desc">按分数（高到低）</option>
+                        <option value="score-asc">按分数（低到高）</option>
+                    </select>
+                    
+                    <span class="filter-label">游戏模式:</span>
+                    <select id="modeFilter">
+                        <option value="all">全部</option>
+                        <option value="endless">无尽模式</option>
+                        <option value="challenge">挑战模式</option>
+                    </select>
+                </div>
+                
+                <div class="record-count">
+                    显示 <span id="visibleRecords">0</span> 条记录（共 <span id="totalFilteredRecords">0</span> 条）
+                </div>
+                
+                <div class="table-container">
+                    <table id="recordsTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>玩家名称</th>
+                                <th>分数</th>
+                                <th>时间</th>
+                                <th>模式</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recordsBody">
+                            <!-- 数据动态加载 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div id="result" class="result" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let allRecords = [];
+        let filteredRecords = [];
+        let dbInfo = {};
+        
+        // DOM加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 登录按钮
+            document.getElementById('loginButton').addEventListener('click', login);
+            
+            // 刷新按钮
+            document.getElementById('refreshBtn').addEventListener('click', loadAllRecords);
+            
+            // 搜索和过滤
+            document.getElementById('searchInput').addEventListener('input', applyFilters);
+            document.getElementById('clearSearchBtn').addEventListener('click', clearSearch);
+            document.getElementById('sortOption').addEventListener('change', applyFilters);
+            document.getElementById('modeFilter').addEventListener('change', applyFilters);
+        });
+        
+        // 登录验证
+        async function login() {
+            const password = document.getElementById('adminPassword').value;
+            
+            if (!password) {
+                showLoginResult('error', '请输入密码');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/verify-admin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    // 登录成功
+                    document.getElementById('loginScreen').style.display = 'none';
+                    document.getElementById('adminPanel').style.display = 'block';
+                    
+                    // 保存密码用于后续操作
+                    window.adminPassword = password;
+                    
+                    // 加载数据
+                    loadAllRecords();
+                } else {
+                    showLoginResult('error', '密码错误，请重试');
+                }
+            } catch (error) {
+                showLoginResult('error', '登录过程中出错: ' + error.message);
+            }
+        }
+        
+        // 显示登录结果
+        function showLoginResult(type, message) {
+            const loginResult = document.getElementById('loginResult');
+            loginResult.className = `result ${type}`;
+            loginResult.innerHTML = `<p>${message}</p>`;
+            loginResult.style.display = 'block';
+            
+            setTimeout(() => {
+                loginResult.style.display = 'none';
+            }, 3000);
+        }
+        
+        // 加载所有记录
+        async function loadAllRecords() {
+            try {
+                showResult('正在加载数据...');
+                
+                const response = await fetch('/api/admin-get-all-records');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    allRecords = data.records;
+                    dbInfo = data.database;
+                    
+                    // 更新数据库信息
+                    updateDatabaseInfo(data);
+                    
+                    // 应用过滤和排序
+                    applyFilters();
+                    
+                    showResult('数据加载成功！', 'success');
+                } else {
+                    showResult(`加载数据失败: ${data.error || '未知错误'}`, 'error');
+                }
+            } catch (error) {
+                showResult(`加载数据出错: ${error.message}`, 'error');
+            }
+        }
+        
+        // 更新数据库信息显示
+        function updateDatabaseInfo(data) {
+            document.getElementById('totalRecords').textContent = data.totalCount;
+            document.getElementById('totalKeys').textContent = data.database.totalKeys;
+            
+            const collections = data.database.collections;
+            document.getElementById('collectionsCount').textContent = collections.length;
+            document.getElementById('collectionsDetail').textContent = collections.join(', ');
+        }
+        
+        // 应用过滤和排序
+        function applyFilters() {
+            const searchText = document.getElementById('searchInput').value.toLowerCase();
+            const sortValue = document.getElementById('sortOption').value;
+            const modeFilter = document.getElementById('modeFilter').value;
+            
+            // 过滤记录
+            filteredRecords = allRecords.filter(record => {
+                // 搜索过滤
+                const matchesSearch = !searchText || 
+                    record.name?.toLowerCase().includes(searchText) ||
+                    record.id?.toString().includes(searchText) ||
+                    record.score?.toString().includes(searchText);
+                
+                // 模式过滤
+                const matchesMode = modeFilter === 'all' || record.mode === modeFilter;
+                
+                return matchesSearch && matchesMode;
+            });
+            
+            // 排序记录
+            filteredRecords.sort((a, b) => {
+                const aTimestamp = a.formatted.timestamp;
+                const bTimestamp = b.formatted.timestamp;
+                const aScore = a.formatted.score;
+                const bScore = b.formatted.score;
+                
+                switch (sortValue) {
+                    case 'time-desc': 
+                        return bTimestamp - aTimestamp;
+                    case 'time-asc': 
+                        return aTimestamp - bTimestamp;
+                    case 'score-desc': 
+                        return bScore - aScore;
+                    case 'score-asc': 
+                        return aScore - bScore;
+                    default:
+                        return 0;
+                }
+            });
+            
+            // 更新显示
+            updateRecordsTable();
+        }
+        
+        // 更新记录表格
+        function updateRecordsTable() {
+            const tbody = document.getElementById('recordsBody');
+            tbody.innerHTML = '';
+            
+            // 更新记录计数
+            document.getElementById('visibleRecords').textContent = filteredRecords.length;
+            document.getElementById('totalFilteredRecords').textContent = allRecords.length;
+            
+            // 添加记录到表格
+            filteredRecords.forEach(record => {
+                const tr = document.createElement('tr');
+                
+                // 格式化日期
+                const date = new Date(record.formatted.timestamp);
+                const formattedDate = `${date.getFullYear()}-${(date.getMonth()+1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+                
+                tr.innerHTML = `
+                    <td title="${record.id}">${record.id.substring(0, 8)}...</td>
+                    <td>${record.name || '未知玩家'}</td>
+                    <td>${record.score || 0}</td>
+                    <td title="${record.formatted.date}">${formattedDate}</td>
+                    <td>${record.mode || 'endless'}</td>
+                    <td>
+                        <button class="btn-danger delete-btn" data-id="${record.id}">删除</button>
+                        <button class="view-btn" data-id="${record.id}">查看详情</button>
+                    </td>
+                `;
+                
+                tbody.appendChild(tr);
+            });
+            
+            // 添加删除按钮事件
+            document.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const id = this.getAttribute('data-id');
+                    deleteRecord(id);
+                });
+            });
+            
+            // 添加查看详情按钮事件
+            document.querySelectorAll('.view-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const id = this.getAttribute('data-id');
+                    const record = allRecords.find(r => r.id === id);
+                    if (record) {
+                        showRecordDetails(record);
+                    }
+                });
+            });
+        }
+        
+        // 显示记录详情
+        function showRecordDetails(record) {
+            // 将记录转为格式化的JSON
+            const formattedJson = JSON.stringify(record, null, 2);
+            
+            // 创建模态框
+            const modal = document.createElement('div');
+            modal.style.position = 'fixed';
+            modal.style.top = '0';
+            modal.style.left = '0';
+            modal.style.right = '0';
+            modal.style.bottom = '0';
+            modal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+            modal.style.display = 'flex';
+            modal.style.justifyContent = 'center';
+            modal.style.alignItems = 'center';
+            modal.style.zIndex = '1000';
+            
+            // 创建内容区
+            const content = document.createElement('div');
+            content.style.backgroundColor = 'white';
+            content.style.padding = '20px';
+            content.style.borderRadius = '8px';
+            content.style.maxWidth = '80%';
+            content.style.maxHeight = '80%';
+            content.style.overflow = 'auto';
+            
+            content.innerHTML = `
+                <h3>记录详情 (ID: ${record.id})</h3>
+                <div class="json-view">${formattedJson}</div>
+                <div style="margin-top: 15px; text-align: right;">
+                    <button id="closeModal">关闭</button>
+                </div>
+            `;
+            
+            modal.appendChild(content);
+            document.body.appendChild(modal);
+            
+            // 点击关闭按钮或背景关闭模态框
+            document.getElementById('closeModal').addEventListener('click', () => {
+                document.body.removeChild(modal);
+            });
+            
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    document.body.removeChild(modal);
+                }
+            });
+        }
+        
+        // 删除记录
+        async function deleteRecord(id) {
+            if (!confirm(`确定要删除ID为 ${id} 的记录吗？`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/delete-record', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        id: id,
+                        password: window.adminPassword 
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    showResult('记录删除成功！', 'success');
+                    
+                    // 从列表中移除
+                    allRecords = allRecords.filter(r => r.id !== id);
+                    applyFilters();
+                } else {
+                    showResult(`删除失败: ${data.error || '操作失败'}`, 'error');
+                }
+            } catch (error) {
+                showResult(`删除出错: ${error.message}`, 'error');
+            }
+        }
+        
+        // 清除搜索
+        function clearSearch() {
+            document.getElementById('searchInput').value = '';
+            applyFilters();
+        }
+        
+        // 显示操作结果
+        function showResult(message, type = '') {
+            const resultDiv = document.getElementById('result');
+            resultDiv.className = type ? `result ${type}` : 'result';
+            resultDiv.innerHTML = `<p>${message}</p>`;
+            resultDiv.style.display = 'block';
+            
+            if (type) {
+                setTimeout(() => {
+                    resultDiv.style.display = 'none';
+                }, 3000);
+            }
+        }
+    </script>
+</body>
+</html> 
