@@ -272,6 +272,7 @@
                                 <th>分数</th>
                                 <th>时间</th>
                                 <th>模式</th>
+                                <th>所属集合</th>
                                 <th>操作</th>
                             </tr>
                         </thead>
@@ -460,6 +461,7 @@
                     <td>${record.score || 0}</td>
                     <td title="${record.formatted.date}">${formattedDate}</td>
                     <td>${record.mode || 'endless'}</td>
+                    <td>${record.sourceSet || '未知集合'}</td>
                     <td>
                         <button class="btn-danger delete-btn" data-id="${record.id}">删除</button>
                         <button class="view-btn" data-id="${record.id}">查看详情</button>
