@@ -23,7 +23,6 @@
    - [3.4 游戏结算智能交互](#34-游戏结算智能交互)
    - [3.5 输入表单优化](#35-输入表单优化)
    - [3.6 全球排行榜交互](#36-全球排行榜交互)
-   - [3.7 游戏内通知系统](#37-游戏内通知系统)
 
 ---
 
@@ -762,48 +761,6 @@ displayLeaderboard(scores) {
 #leaderboard-list th {
     background-color: rgba(0, 0, 0, 0.3);
     font-weight: bold;
-}
-```
-
-### 3.7 游戏内通知系统
-
-游戏更新通知横幅：
-
-```html
-<!-- 更新通知横幅 -->
-<div id="update-notification" class="notification" style="display: none;">
-    <p>游戏已更新！新的设置将在下一局游戏生效</p>
-    <button id="close-notification">✕</button>
-</div>
-```
-
-通知显示与关闭交互：
-```javascript
-// 关闭更新通知按钮
-const closeNotificationButton = document.getElementById('close-notification');
-if (closeNotificationButton) {
-    closeNotificationButton.addEventListener('click', () => {
-        const notification = document.getElementById('update-notification');
-        if (notification) {
-            notification.style.display = 'none';
-        }
-    });
-}
-
-// 检测配置更新并显示通知
-checkForConfigUpdates() {
-    // 如果配置有更新
-    if (configChanged) {
-        const notification = document.getElementById('update-notification');
-        if (notification) {
-            notification.style.display = 'block';
-            
-            // 自动关闭通知
-            setTimeout(() => {
-                notification.style.display = 'none';
-            }, 5000);
-        }
-    }
 }
 ```
 
