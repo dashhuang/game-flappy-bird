@@ -351,9 +351,26 @@
             loginResult.innerHTML = `<p>${message}</p>`;
             loginResult.style.display = 'block';
             
-            setTimeout(() => {
-                loginResult.style.display = 'none';
-            }, 3000);
+            // 只有成功消息自动消失
+            if (type === 'success') {
+                setTimeout(() => {
+                    loginResult.style.display = 'none';
+                }, 3000);
+            }
+            
+            // 为错误消息添加关闭按钮
+            if (type === 'error') {
+                const closeButton = document.createElement('button');
+                closeButton.textContent = '关闭';
+                closeButton.style.marginTop = '10px';
+                closeButton.style.padding = '5px 10px';
+                closeButton.style.fontSize = '12px';
+                closeButton.addEventListener('click', function() {
+                    loginResult.style.display = 'none';
+                });
+                
+                loginResult.appendChild(closeButton);
+            }
         }
         
         // 加载所有记录
@@ -612,10 +629,26 @@
             resultDiv.innerHTML = `<p>${message}</p>`;
             resultDiv.style.display = 'block';
             
-            if (type) {
+            // 只有成功消息会自动消失，错误消息保持显示
+            if (type === 'success') {
                 setTimeout(() => {
                     resultDiv.style.display = 'none';
                 }, 3000);
+            }
+            
+            // 如果是错误消息，添加关闭按钮
+            if (type === 'error') {
+                // 添加一个关闭按钮
+                const closeButton = document.createElement('button');
+                closeButton.textContent = '关闭';
+                closeButton.style.marginTop = '10px';
+                closeButton.style.padding = '5px 10px';
+                closeButton.style.fontSize = '12px';
+                closeButton.addEventListener('click', function() {
+                    resultDiv.style.display = 'none';
+                });
+                
+                resultDiv.appendChild(closeButton);
             }
         }
     </script>
