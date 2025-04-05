@@ -152,6 +152,16 @@ export default async function handler(req, res) {
     console.log(`管理员API请求: /api/get-leaderboard (模式=${mode || '全部'}, 排序=${sortBy}, 页码=${page}, 每页=${pageSize})`);
     console.log(`返回 ${paginatedData.length}/${totalRecords} 条记录`);
     
+    // 确保用户索引存在
+    for (const item of paginatedData) {
+      const userRecordKey = `user:${item.playerName}:${item.mode}${item.date ? ':' + item.date : ''}`;
+      // 检查索引是否存在，不存在则创建
+      const exists = await redis.exists(userRecordKey);
+      if (!exists) {
+        await redis.set(userRecordKey, item.id);
+      }
+    }
+    
     // 关闭Redis连接
     await redis.disconnect();
     
