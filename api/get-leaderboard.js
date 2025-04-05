@@ -27,28 +27,47 @@ export default async function handler(req, res) {
   }
   
   try {
-    // 获取分页参数
+    // 获取查询参数
     const page = parseInt(req.query.page) || 1;
     const pageSize = parseInt(req.query.pageSize) || 10;
+    const mode = req.query.mode; // 'endless'或'challenge'或undefined(全部)
+    const date = req.query.date; // 仅当mode为'challenge'时使用
+    const sortBy = req.query.sortBy || 'score'; // 'score'或'time'
     
     // 创建Redis客户端并连接
     const redis = await createClient({
       url: process.env.REDIS_URL
     }).connect();
     
-    // 获取所有游戏模式的键
-    const keys = await redis.keys('scores:*');
+    // 确定要查询的键
+    let keys = [];
     
-    // 添加总分数键
-    keys.push('scores');
+    if (mode === 'endless') {
+      // 仅查询无尽模式
+      keys.push('scores:endless');
+    } else if (mode === 'challenge') {
+      if (date) {
+        // 特定日期的挑战模式
+        keys.push(`scores:challenge:${date}`);
+      } else {
+        // 所有挑战模式
+        keys.push('scores:challenge');
+      }
+    } else {
+      // 获取所有游戏模式的键
+      const allKeys = await redis.keys('scores:*');
+      keys = allKeys;
+      // 添加总分数键
+      keys.push('scores');
+    }
     
     // 去重
-    const uniqueKeys = [...new Set(keys)];
+    keys = [...new Set(keys)];
     
     const leaderboardData = [];
     
     // 处理每个集合键
-    for (const key of uniqueKeys) {
+    for (const key of keys) {
       // 从Redis获取分数ID，按排序分数降序排列
       const scoreIds = await redis.zRange(key, 0, -1, {
         REV: true // 降序排列
@@ -63,11 +82,16 @@ export default async function handler(req, res) {
         
         const scoreData = await redis.hGetAll(`score:${id}`);
         if (scoreData && Object.keys(scoreData).length > 0) {
+          // 如果指定了模式但记录不匹配，则跳过
+          if (mode && scoreData.mode !== mode) {
+            continue;
+          }
+          
           // 将ID添加到数据中，以便前端可以删除特定记录
           leaderboardData.push({
             id: id,
             playerName: scoreData.name || '未知玩家',
-            score: scoreData.score || '0',
+            score: parseInt(scoreData.score || '0'),
             timestamp: scoreData.timestamp ? parseInt(scoreData.timestamp) : 0,
             date: scoreData.date || (scoreData.timestamp ? new Date(parseInt(scoreData.timestamp)).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
             mode: scoreData.mode || 'endless'
@@ -76,8 +100,14 @@ export default async function handler(req, res) {
       }
     }
     
-    // 按时间戳降序排列（从新到旧）
-    leaderboardData.sort((a, b) => b.timestamp - a.timestamp);
+    // 根据排序选项排序
+    if (sortBy === 'score') {
+      // 按分数降序排列
+      leaderboardData.sort((a, b) => b.score - a.score);
+    } else {
+      // 按时间戳降序排列（从新到旧）
+      leaderboardData.sort((a, b) => b.timestamp - a.timestamp);
+    }
     
     // 计算分页信息
     const totalRecords = leaderboardData.length;
@@ -87,7 +117,7 @@ export default async function handler(req, res) {
     const paginatedData = leaderboardData.slice(startIndex, endIndex);
     
     // 记录API调用日志
-    console.log(`管理员API请求: /api/get-leaderboard (页码=${page}, 每页=${pageSize})`);
+    console.log(`管理员API请求: /api/get-leaderboard (模式=${mode || '全部'}, 排序=${sortBy}, 页码=${page}, 每页=${pageSize})`);
     console.log(`返回 ${paginatedData.length}/${totalRecords} 条记录`);
     
     // 关闭Redis连接

@@ -119,6 +119,39 @@
             color: #666;
             text-align: center;
         }
+        
+        /* 筛选器样式 */
+        .filters {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f0f0f0;
+            border-radius: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+        }
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .filter-group label {
+            font-weight: bold;
+        }
+        .filter-group select {
+            padding: 5px 10px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        #dateFilterContainer {
+            display: none;
+        }
+        #dateFilter {
+            padding: 5px 10px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
     </style>
 </head>
 <body>
@@ -136,6 +169,33 @@
             <div class="section">
                 <h2>查看排行榜</h2>
                 <button id="refreshBtn">刷新数据</button>
+                
+                <div class="filters">
+                    <div class="filter-group">
+                        <label for="modeFilter">游戏模式:</label>
+                        <select id="modeFilter">
+                            <option value="">全部</option>
+                            <option value="endless">无尽模式</option>
+                            <option value="challenge">每日挑战</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group" id="dateFilterContainer">
+                        <label for="dateFilter">挑战日期:</label>
+                        <input type="date" id="dateFilter">
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="sortFilter">排序方式:</label>
+                        <select id="sortFilter">
+                            <option value="score">按分数排序</option>
+                            <option value="time">按时间排序</option>
+                        </select>
+                    </div>
+                    
+                    <button id="applyFilters">应用筛选</button>
+                </div>
+                
                 <div id="leaderboardContainer">
                     <table id="leaderboardTable">
                         <thead>
@@ -144,6 +204,7 @@
                                 <th>玩家名称</th>
                                 <th>分数</th>
                                 <th>日期</th>
+                                <th>模式</th>
                                 <th>操作</th>
                             </tr>
                         </thead>
@@ -178,6 +239,39 @@
             currentPage: 1,
             pageSize: 10
         };
+        
+        // 筛选设置
+        let filterSettings = {
+            mode: '',
+            date: '',
+            sortBy: 'score'
+        };
+        
+        // 初始化日期筛选器
+        document.getElementById('modeFilter').addEventListener('change', function() {
+            const dateFilterContainer = document.getElementById('dateFilterContainer');
+            if (this.value === 'challenge') {
+                dateFilterContainer.style.display = 'flex';
+            } else {
+                dateFilterContainer.style.display = 'none';
+                document.getElementById('dateFilter').value = '';
+            }
+        });
+        
+        // 应用筛选按钮
+        document.getElementById('applyFilters').addEventListener('click', function() {
+            filterSettings.mode = document.getElementById('modeFilter').value;
+            filterSettings.sortBy = document.getElementById('sortFilter').value;
+            
+            if (filterSettings.mode === 'challenge') {
+                filterSettings.date = document.getElementById('dateFilter').value;
+            } else {
+                filterSettings.date = '';
+            }
+            
+            // 重新加载数据，并回到第一页
+            loadLeaderboardData(1);
+        });
         
         // 简单的密码验证
         document.getElementById('loginButton').addEventListener('click', async function() {
@@ -226,7 +320,25 @@
         async function loadLeaderboardData(page = 1) {
             try {
                 const password = document.getElementById('adminPassword').value;
-                const response = await fetch(`/api/get-leaderboard?page=${page}&pageSize=10`, {
+                
+                // 构建查询参数
+                const params = new URLSearchParams({
+                    page: page,
+                    pageSize: 10,
+                    sortBy: filterSettings.sortBy
+                });
+                
+                // 添加模式过滤
+                if (filterSettings.mode) {
+                    params.append('mode', filterSettings.mode);
+                    
+                    // 添加日期过滤（仅当模式为挑战且指定了日期时）
+                    if (filterSettings.mode === 'challenge' && filterSettings.date) {
+                        params.append('date', filterSettings.date);
+                    }
+                }
+                
+                const response = await fetch(`/api/get-leaderboard?${params.toString()}`, {
                     headers: {
                         'Admin-Password': password
                     }
@@ -248,7 +360,7 @@
                     updatePaginationControls();
                     
                     if (data.length === 0) {
-                        tableBody.innerHTML = '<tr><td colspan="5" style="text-align: center;">暂无排行榜数据</td></tr>';
+                        tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center;">暂无排行榜数据</td></tr>';
                         return;
                     }
                     
@@ -261,11 +373,15 @@
                         const date = new Date(item.date);
                         const formattedDate = `${date.getFullYear()}-${(date.getMonth()+1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
                         
+                        // 根据模式显示不同的文本
+                        const modeText = item.mode === 'endless' ? '无尽模式' : '每日挑战';
+                        
                         row.innerHTML = `
                             <td>${startRank + index}</td>
                             <td>${item.playerName}</td>
                             <td>${item.score}</td>
                             <td>${formattedDate}</td>
+                            <td>${modeText}</td>
                             <td><button class="delete-btn" data-id="${item.id}">删除</button></td>
                         `;
                         tableBody.appendChild(row);
