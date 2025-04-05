@@ -43,6 +43,25 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true });
     }
     
+    // 如果是挑战模式，且分数大于50，自动屏蔽IP且不记录分数
+    if (mode === 'challenge' && parseInt(score) > 50) {
+      console.log(`用户 ${name} (IP: ${ip}) 挑战模式得分 ${score} 超过50分，自动屏蔽且不记录成绩`);
+      
+      // 断开Redis连接
+      if (redis) await redis.disconnect();
+      redis = null;
+      
+      // 使用非阻塞方式执行屏蔽操作，不影响响应返回
+      setTimeout(() => {
+        autoBlockIpAsync(ip, name, parseInt(score), date, Date.now()).catch(error => {
+          console.error(`IP屏蔽异步操作失败:`, error);
+        });
+      }, 10);
+      
+      // 返回成功响应，但实际未记录分数
+      return res.status(200).json({ success: true });
+    }
+    
     // 确定要使用的有序集合键名
     // 1. 模式分数集合: 'scores:endless' 或 'scores:challenge'
     // 2. 每日挑战日期集合: 'scores:challenge:YYYY-MM-DD'
@@ -150,19 +169,9 @@ export default async function handler(req, res) {
       console.log(`用户 ${name} (IP: ${ip}) 提交的分数 ${score} 不高于现有记录 ${existingRecord.score}，保持不变`);
     }
     
-    // 在记录分数逻辑完成后，先断开Redis连接并返回成功响应
+    // 在记录分数逻辑完成后，断开Redis连接并返回成功响应
     if (redis) await redis.disconnect();
     redis = null;
-    
-    // 如果是挑战模式，且分数大于50，异步执行IP屏蔽逻辑（不等待完成）
-    if (mode === 'challenge' && parseInt(score) > 50) {
-      // 使用非阻塞方式执行屏蔽操作，不影响响应返回
-      setTimeout(() => {
-        autoBlockIpAsync(ip, name, parseInt(score), date, timestamp).catch(error => {
-          console.error(`IP屏蔽异步操作失败:`, error);
-        });
-      }, 10);
-    }
     
     return res.status(200).json({ success: true });
   } catch (error) {
