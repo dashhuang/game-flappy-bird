@@ -6,6 +6,10 @@ export default async function handler(req, res) {
   }
   
   try {
+    // 获取分页参数
+    const page = parseInt(req.query.page) || 1;
+    const pageSize = parseInt(req.query.pageSize) || 10;
+    
     // 创建Redis客户端并连接
     const redis = await createClient({
       url: process.env.REDIS_URL
@@ -54,14 +58,30 @@ export default async function handler(req, res) {
     // 按时间戳降序排列（从新到旧）
     leaderboardData.sort((a, b) => b.timestamp - a.timestamp);
     
+    // 计算分页信息
+    const totalRecords = leaderboardData.length;
+    const totalPages = Math.ceil(totalRecords / pageSize);
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    const paginatedData = leaderboardData.slice(startIndex, endIndex);
+    
     // 记录API调用日志
-    console.log(`管理员API请求: /api/get-leaderboard`);
-    console.log(`返回 ${leaderboardData.length} 条记录`);
+    console.log(`管理员API请求: /api/get-leaderboard (页码=${page}, 每页=${pageSize})`);
+    console.log(`返回 ${paginatedData.length}/${totalRecords} 条记录`);
     
     // 关闭Redis连接
     await redis.disconnect();
     
-    return res.status(200).json(leaderboardData);
+    // 返回带有分页信息的数据
+    return res.status(200).json({
+      data: paginatedData,
+      pagination: {
+        totalRecords,
+        totalPages,
+        currentPage: page,
+        pageSize
+      }
+    });
   } catch (error) {
     console.error('获取排行榜数据错误:', error);
     return res.status(500).json({ error: '服务器错误：' + error.message });
