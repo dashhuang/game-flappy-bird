@@ -198,6 +198,43 @@
         .tab-content.active {
             display: block;
         }
+        
+        /* IP屏蔽管理样式 */
+        .ip-actions {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .ip-input-group {
+            display: flex;
+            gap: 10px;
+        }
+        #ipToBlock {
+            width: 250px;
+        }
+        .blocked-ips-container {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .unblock-btn {
+            background-color: #2980b9;
+        }
+        .unblock-btn:hover {
+            background-color: #3498db;
+        }
+        /* 为IP列中添加特殊样式 */
+        .ip-column {
+            font-family: monospace;
+            font-size: 14px;
+            letter-spacing: 0.5px;
+        }
+        /* 为表格中的操作按钮添加统一样式 */
+        .table-action-btn {
+            padding: 5px 10px;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -215,6 +252,7 @@
             <div class="tabs">
                 <div class="tab active" data-tab="leaderboards">游戏排行榜</div>
                 <div class="tab" data-tab="management">高级管理</div>
+                <div class="tab" data-tab="blockedIps">IP屏蔽管理</div>
             </div>
             
             <!-- 排行榜标签页 -->
@@ -357,6 +395,37 @@
                     <h2>清空排行榜</h2>
                     <p>警告：此操作将删除所有排行榜数据，且不可恢复！</p>
                     <button id="clearButton">清空排行榜</button>
+                </div>
+            </div>
+            
+            <!-- IP屏蔽管理标签页 -->
+            <div id="blockedIpsTab" class="tab-content">
+                <h2>IP屏蔽管理</h2>
+                <div class="section">
+                    <div class="ip-actions">
+                        <div class="ip-input-group">
+                            <input type="text" id="ipToBlock" placeholder="输入要屏蔽的IP地址">
+                            <button id="blockIpBtn">屏蔽IP</button>
+                        </div>
+                        <button id="refreshBlockedIpsBtn">刷新IP列表</button>
+                    </div>
+                    
+                    <h3>被屏蔽的IP列表</h3>
+                    <div class="blocked-ips-container">
+                        <table id="blockedIpsTable">
+                            <thead>
+                                <tr>
+                                    <th>IP地址</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="blockedIpsData">
+                                <tr>
+                                    <td colspan="2" class="loading">加载中...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
             
@@ -505,6 +574,9 @@
             
             // 加载高级管理数据
             loadAdvancedLeaderboardData(1);
+            
+            // 加载屏蔽IP列表
+            loadBlockedIps();
         }
         
         // 加载无尽模式排行榜
@@ -544,11 +616,14 @@
                             <td>${item.playerName}</td>
                             <td>${item.score}</td>
                             <td>${formattedDate}</td>
-                            <td>${item.ip || '未知'}</td>
+                            <td class="ip-column">${item.ip || '未知'}</td>
                             <td><button class="delete-btn" data-id="${item.id}">删除</button></td>
                         `;
                         tableBody.appendChild(row);
                     });
+                    
+                    // 为无尽模式表格添加屏蔽按钮
+                    setTimeout(addBlockButtonToTable, 100);
                     
                     // 添加删除按钮的事件监听
                     tableBody.querySelectorAll('.delete-btn').forEach(button => {
@@ -616,11 +691,14 @@
                             <td>${item.playerName}</td>
                             <td>${item.score}</td>
                             <td>${formattedDate}</td>
-                            <td>${item.ip || '未知'}</td>
+                            <td class="ip-column">${item.ip || '未知'}</td>
                             <td><button class="delete-btn" data-id="${item.id}">删除</button></td>
                         `;
                         tableBody.appendChild(row);
                     });
+                    
+                    // 为每日挑战表格添加屏蔽按钮
+                    setTimeout(addBlockButtonToTable, 100);
                     
                     // 添加删除按钮的事件监听
                     tableBody.querySelectorAll('.delete-btn').forEach(button => {
@@ -706,11 +784,14 @@
                             <td>${item.score}</td>
                             <td>${formattedDate}</td>
                             <td>${modeText}</td>
-                            <td>${item.ip || '未知'}</td>
+                            <td class="ip-column">${item.ip || '未知'}</td>
                             <td><button class="delete-btn" data-id="${item.id}">删除</button></td>
                         `;
                         tableBody.appendChild(row);
                     });
+                    
+                    // 为高级管理表格添加屏蔽按钮
+                    setTimeout(addBlockButtonToTable, 100);
                     
                     // 添加删除按钮的事件监听
                     tableBody.querySelectorAll('.delete-btn').forEach(button => {
@@ -819,6 +900,224 @@
                 }
             }
         });
+
+        // 加载被屏蔽的IP列表
+        async function loadBlockedIps() {
+            try {
+                const password = document.getElementById('adminPassword').value;
+                
+                // 显示加载中
+                document.getElementById('blockedIpsData').innerHTML = '<tr><td colspan="2" class="loading">加载中...</td></tr>';
+                
+                const response = await fetch('/api/block-ip', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        password: password,
+                        ip: '',
+                        action: 'list'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    const tableBody = document.getElementById('blockedIpsData');
+                    tableBody.innerHTML = ''; // 清空表格
+                    
+                    const blockedIps = result.blockedIps || [];
+                    
+                    if (blockedIps.length === 0) {
+                        tableBody.innerHTML = '<tr><td colspan="2" class="empty-data">没有被屏蔽的IP</td></tr>';
+                        return;
+                    }
+                    
+                    // 将数据添加到表格中
+                    blockedIps.forEach(ip => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td class="ip-column">${ip}</td>
+                            <td><button class="unblock-btn table-action-btn" data-ip="${ip}">解除屏蔽</button></td>
+                        `;
+                        tableBody.appendChild(row);
+                    });
+                    
+                    // 添加解除屏蔽按钮的事件监听
+                    tableBody.querySelectorAll('.unblock-btn').forEach(button => {
+                        button.addEventListener('click', function() {
+                            const ip = this.getAttribute('data-ip');
+                            unblockIp(ip);
+                        });
+                    });
+                } else {
+                    document.getElementById('blockedIpsData').innerHTML = 
+                        `<tr><td colspan="2" class="error">获取数据失败: ${result.error || '未知错误'}</td></tr>`;
+                }
+            } catch (error) {
+                document.getElementById('blockedIpsData').innerHTML = 
+                    `<tr><td colspan="2" class="error">加载数据时出错: ${error.message || '连接服务器失败'}</td></tr>`;
+            }
+        }
+
+        // 屏蔽IP
+        async function blockIp(ip) {
+            try {
+                const password = document.getElementById('adminPassword').value;
+                
+                if (!ip || !ip.trim()) {
+                    showResult('error', '请输入有效的IP地址');
+                    return;
+                }
+                
+                const response = await fetch('/api/block-ip', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        password: password,
+                        ip: ip.trim(),
+                        action: 'block'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    showResult('success', result.message || 'IP地址已成功屏蔽');
+                    
+                    // 清空输入框
+                    document.getElementById('ipToBlock').value = '';
+                    
+                    // 重新加载IP列表
+                    loadBlockedIps();
+                } else {
+                    showResult('error', `屏蔽IP失败: ${result.error || '未知错误'}`);
+                }
+            } catch (error) {
+                showResult('error', `操作时出错: ${error.message || '连接服务器失败'}`);
+            }
+        }
+
+        // 解除IP屏蔽
+        async function unblockIp(ip) {
+            if (confirm(`确定要解除对IP ${ip} 的屏蔽吗？`)) {
+                try {
+                    const password = document.getElementById('adminPassword').value;
+                    
+                    const response = await fetch('/api/block-ip', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            password: password,
+                            ip: ip,
+                            action: 'unblock'
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (response.ok && result.success) {
+                        showResult('success', result.message || 'IP地址已解除屏蔽');
+                        
+                        // 重新加载IP列表
+                        loadBlockedIps();
+                    } else {
+                        showResult('error', `解除屏蔽失败: ${result.error || '未知错误'}`);
+                    }
+                } catch (error) {
+                    showResult('error', `操作时出错: ${error.message || '连接服务器失败'}`);
+                }
+            }
+        }
+
+        // 添加IP屏蔽按钮事件
+        document.getElementById('blockIpBtn').addEventListener('click', function() {
+            const ip = document.getElementById('ipToBlock').value;
+            blockIp(ip);
+        });
+
+        // 屏蔽指定IP（从表格中的操作）
+        function blockIpFromTable(ip) {
+            if (confirm(`确定要屏蔽IP ${ip} 吗？该IP的所有分数提交将被拒绝。`)) {
+                blockIp(ip);
+            }
+        }
+
+        // 刷新IP列表按钮
+        document.getElementById('refreshBlockedIpsBtn').addEventListener('click', function() {
+            loadBlockedIps();
+        });
+
+        // 为表格中的IP地址添加屏蔽操作
+        function addBlockButtonToTable() {
+            // 为无尽模式表格添加屏蔽按钮
+            document.querySelectorAll('#endlessLeaderboardData tr').forEach(row => {
+                const cells = row.querySelectorAll('td');
+                if (cells.length >= 5) {
+                    const ipCell = cells[4];
+                    const ip = ipCell.textContent;
+                    if (ip && ip !== '未知') {
+                        const actionCell = cells[5];
+                        const blockButton = document.createElement('button');
+                        blockButton.className = 'block-ip-btn table-action-btn';
+                        blockButton.textContent = '屏蔽IP';
+                        blockButton.style.marginLeft = '5px';
+                        blockButton.setAttribute('data-ip', ip);
+                        blockButton.addEventListener('click', function() {
+                            blockIpFromTable(ip);
+                        });
+                        actionCell.appendChild(blockButton);
+                    }
+                }
+            });
+            
+            // 为每日挑战表格添加屏蔽按钮
+            document.querySelectorAll('#challengeLeaderboardData tr').forEach(row => {
+                const cells = row.querySelectorAll('td');
+                if (cells.length >= 5) {
+                    const ipCell = cells[4];
+                    const ip = ipCell.textContent;
+                    if (ip && ip !== '未知') {
+                        const actionCell = cells[5];
+                        const blockButton = document.createElement('button');
+                        blockButton.className = 'block-ip-btn table-action-btn';
+                        blockButton.textContent = '屏蔽IP';
+                        blockButton.style.marginLeft = '5px';
+                        blockButton.setAttribute('data-ip', ip);
+                        blockButton.addEventListener('click', function() {
+                            blockIpFromTable(ip);
+                        });
+                        actionCell.appendChild(blockButton);
+                    }
+                }
+            });
+            
+            // 为高级管理表格添加屏蔽按钮
+            document.querySelectorAll('#advancedLeaderboardData tr').forEach(row => {
+                const cells = row.querySelectorAll('td');
+                if (cells.length >= 6) {
+                    const ipCell = cells[5];
+                    const ip = ipCell.textContent;
+                    if (ip && ip !== '未知') {
+                        const actionCell = cells[6];
+                        const blockButton = document.createElement('button');
+                        blockButton.className = 'block-ip-btn table-action-btn';
+                        blockButton.textContent = '屏蔽IP';
+                        blockButton.style.marginLeft = '5px';
+                        blockButton.setAttribute('data-ip', ip);
+                        blockButton.addEventListener('click', function() {
+                            blockIpFromTable(ip);
+                        });
+                        actionCell.appendChild(blockButton);
+                    }
+                }
+            });
+        }
     </script>
 </body>
 </html> 

@@ -20,6 +20,17 @@ export default async function handler(req, res) {
       url: process.env.REDIS_URL
     }).connect();
     
+    // 检查IP是否被屏蔽
+    const blockedIpSetKey = 'blocked:ips';
+    const isBlocked = await redis.sIsMember(blockedIpSetKey, ip);
+    
+    if (isBlocked) {
+      console.log(`拒绝来自被屏蔽IP的分数提交: ${ip}, 用户: ${name}, 分数: ${score}，但返回成功响应`);
+      await redis.disconnect();
+      // 返回成功消息，但实际不记录分数，用户无法察觉被屏蔽
+      return res.status(200).json({ success: true });
+    }
+    
     // 确定要使用的有序集合键名
     // 1. 模式分数集合: 'scores:endless' 或 'scores:challenge'
     // 2. 每日挑战日期集合: 'scores:challenge:YYYY-MM-DD'
