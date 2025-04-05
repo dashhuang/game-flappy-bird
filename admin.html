@@ -57,6 +57,40 @@
         #adminPanel {
             display: none;
         }
+        
+        /* 排行榜表格样式 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        tr:hover {
+            background-color: #f9f9f9;
+        }
+        .delete-btn {
+            padding: 5px 10px;
+            font-size: 14px;
+        }
+        .section {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+        }
+        #refreshBtn {
+            background-color: #3498db;
+            margin-right: 10px;
+        }
+        #refreshBtn:hover {
+            background-color: #2980b9;
+        }
     </style>
 </head>
 <body>
@@ -71,7 +105,28 @@
         </div>
         
         <div id="adminPanel">
-            <div>
+            <div class="section">
+                <h2>查看排行榜</h2>
+                <button id="refreshBtn">刷新数据</button>
+                <div id="leaderboardContainer">
+                    <table id="leaderboardTable">
+                        <thead>
+                            <tr>
+                                <th>排名</th>
+                                <th>玩家名称</th>
+                                <th>分数</th>
+                                <th>日期</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leaderboardData">
+                            <!-- 排行榜数据将在这里动态加载 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="section">
                 <h2>清空排行榜</h2>
                 <p>警告：此操作将删除所有排行榜数据，且不可恢复！</p>
                 <button id="clearButton">清空排行榜</button>
@@ -101,6 +156,9 @@
                     // 密码正确，显示管理面板
                     document.getElementById('loginScreen').style.display = 'none';
                     document.getElementById('adminPanel').style.display = 'block';
+                    
+                    // 加载排行榜数据
+                    loadLeaderboardData();
                 } else {
                     // 密码错误，显示错误消息
                     const loginResult = document.getElementById('loginResult');
@@ -121,6 +179,100 @@
             }
         });
         
+        // 加载排行榜数据
+        async function loadLeaderboardData() {
+            try {
+                const response = await fetch('/api/get-leaderboard');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    const tableBody = document.getElementById('leaderboardData');
+                    tableBody.innerHTML = ''; // 清空表格
+                    
+                    if (data.length === 0) {
+                        tableBody.innerHTML = '<tr><td colspan="5" style="text-align: center;">暂无排行榜数据</td></tr>';
+                        return;
+                    }
+                    
+                    // 将数据添加到表格中
+                    data.forEach((item, index) => {
+                        const row = document.createElement('tr');
+                        const date = new Date(item.date);
+                        const formattedDate = `${date.getFullYear()}-${(date.getMonth()+1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+                        
+                        row.innerHTML = `
+                            <td>${index + 1}</td>
+                            <td>${item.playerName}</td>
+                            <td>${item.score}</td>
+                            <td>${formattedDate}</td>
+                            <td><button class="delete-btn" data-id="${item.id}">删除</button></td>
+                        `;
+                        tableBody.appendChild(row);
+                    });
+                    
+                    // 添加删除按钮的事件监听
+                    document.querySelectorAll('.delete-btn').forEach(button => {
+                        button.addEventListener('click', function() {
+                            deleteRecord(this.getAttribute('data-id'));
+                        });
+                    });
+                } else {
+                    showResult('error', `获取排行榜数据失败: ${data.error || '未知错误'}`);
+                }
+            } catch (error) {
+                showResult('error', `加载排行榜数据时出错: ${error.message || '连接服务器失败'}`);
+            }
+        }
+        
+        // 删除单条记录
+        async function deleteRecord(id) {
+            if (confirm('确定要删除这条记录吗？')) {
+                try {
+                    const password = document.getElementById('adminPassword').value;
+                    const response = await fetch('/api/delete-record', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ 
+                            id: id,
+                            password: password 
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok && data.success) {
+                        showResult('success', '记录已成功删除');
+                        // 重新加载排行榜数据
+                        loadLeaderboardData();
+                    } else {
+                        showResult('error', `删除失败: ${data.error || '操作失败'}`);
+                    }
+                } catch (error) {
+                    showResult('error', `删除操作时出错: ${error.message || '连接服务器失败'}`);
+                }
+            }
+        }
+        
+        // 显示操作结果
+        function showResult(type, message) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+            resultDiv.className = `result ${type}`;
+            resultDiv.innerHTML = `<p>${message}</p>`;
+            
+            // 3秒后隐藏消息
+            setTimeout(() => {
+                resultDiv.style.display = 'none';
+            }, 3000);
+        }
+        
+        // 刷新按钮
+        document.getElementById('refreshBtn').addEventListener('click', function() {
+            loadLeaderboardData();
+        });
+        
         // 清空排行榜功能
         document.getElementById('clearButton').addEventListener('click', async function() {
             if (confirm('确定要清空排行榜吗？此操作不可撤销！')) {
@@ -136,21 +288,15 @@
                     
                     const data = await response.json();
                     
-                    const resultDiv = document.getElementById('result');
-                    resultDiv.style.display = 'block';
-                    
                     if (response.ok) {
-                        resultDiv.className = 'result success';
-                        resultDiv.innerHTML = `<p>${data.message}</p>`;
+                        showResult('success', data.message);
+                        // 重新加载排行榜数据
+                        loadLeaderboardData();
                     } else {
-                        resultDiv.className = 'result error';
-                        resultDiv.innerHTML = `<p>错误：${data.error || '操作失败'}</p>`;
+                        showResult('error', `错误：${data.error || '操作失败'}`);
                     }
                 } catch (error) {
-                    const resultDiv = document.getElementById('result');
-                    resultDiv.style.display = 'block';
-                    resultDiv.className = 'result error';
-                    resultDiv.innerHTML = `<p>错误：${error.message || '连接服务器失败'}</p>`;
+                    showResult('error', `错误：${error.message || '连接服务器失败'}`);
                 }
             }
         });

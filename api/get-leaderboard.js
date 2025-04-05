@@ -1,0 +1,48 @@
+import { createClient } from 'redis';
+
+export default async function handler(req, res) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: '方法不允许' });
+  }
+  
+  try {
+    // 创建Redis客户端并连接
+    const redis = await createClient({
+      url: process.env.REDIS_URL
+    }).connect();
+    
+    // 从Redis获取所有分数ID，按分数降序排列
+    const allScoreIds = await redis.zRange('scores', 0, -1, {
+      REV: true // 降序排列
+    });
+    
+    const leaderboardData = [];
+    
+    // 获取每个分数的详细信息
+    for (const id of allScoreIds) {
+      const scoreData = await redis.hGetAll(`score:${id}`);
+      if (scoreData) {
+        // 将ID添加到数据中，以便前端可以删除特定记录
+        leaderboardData.push({
+          id: id,
+          playerName: scoreData.name || '未知玩家',
+          score: scoreData.score || '0',
+          date: scoreData.timestamp ? new Date(parseInt(scoreData.timestamp)).toISOString() : new Date().toISOString(),
+          mode: scoreData.mode || 'endless'
+        });
+      }
+    }
+    
+    // 记录API调用日志
+    console.log(`管理员API请求: /api/get-leaderboard`);
+    console.log(`返回 ${leaderboardData.length} 条记录`);
+    
+    // 关闭Redis连接
+    await redis.disconnect();
+    
+    return res.status(200).json(leaderboardData);
+  } catch (error) {
+    console.error('获取排行榜数据错误:', error);
+    return res.status(500).json({ error: '服务器错误：' + error.message });
+  }
+} 
