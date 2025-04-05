@@ -596,7 +596,10 @@
                 
                 if (response.ok) {
                     const tableBody = document.getElementById('endlessLeaderboardData');
-                    tableBody.innerHTML = ''; // 清空表格
+                    // 移除所有子元素和绑定的事件监听器
+                    while (tableBody.firstChild) {
+                        tableBody.removeChild(tableBody.firstChild);
+                    }
                     
                     const data = result.data || [];
                     
@@ -671,7 +674,10 @@
                 
                 if (response.ok) {
                     const tableBody = document.getElementById('challengeLeaderboardData');
-                    tableBody.innerHTML = ''; // 清空表格
+                    // 移除所有子元素和绑定的事件监听器
+                    while (tableBody.firstChild) {
+                        tableBody.removeChild(tableBody.firstChild);
+                    }
                     
                     const data = result.data || [];
                     
@@ -1055,6 +1061,11 @@
 
         // 为表格中的IP地址添加屏蔽操作
         function addBlockButtonToTable() {
+            // 首先移除所有现有的屏蔽按钮，防止重复添加
+            document.querySelectorAll('.block-ip-btn').forEach(btn => {
+                btn.remove();
+            });
+            
             // 为无尽模式表格添加屏蔽按钮
             document.querySelectorAll('#endlessLeaderboardData tr').forEach(row => {
                 const cells = row.querySelectorAll('td');
