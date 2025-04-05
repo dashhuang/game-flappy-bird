@@ -105,7 +105,7 @@ class FlappyBirdGame {
         this.isRendering = false;
         
         // 游戏模式
-        this.gameMode = GAME_MODE.ENDLESS;
+        this.gameMode = GAME_MODE.DAILY_CHALLENGE;
         
         // 每日挑战特定参数
         this.dailyChallengeSeed = this.generateDailySeed();
@@ -601,15 +601,32 @@ class FlappyBirdGame {
     // 获取北京时间（GMT+8）的日期字符串（YYYY-MM-DD格式）
     getCurrentChallengeDate() {
         const now = new Date();
-        // 获取当前UTC时间
-        const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
-        // 转换为北京时间 (UTC+8)
-        const beijingTime = new Date(utcTime + (8 * 3600000));
+        // console.log('[Date Debug] Local Time:', now.toString()); // 移除日志
         
-        const year = beijingTime.getUTCFullYear();
-        const month = String(beijingTime.getUTCMonth() + 1).padStart(2, '0');
-        const day = String(beijingTime.getUTCDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
+        const options = {
+            timeZone: 'Asia/Shanghai', // 使用 IANA 时区标识符指定北京时间
+            year: 'numeric',
+            month: '2-digit', // 保证两位月份
+            day: '2-digit',   // 保证两位日期
+            // timeZoneName: 'shortOffset' // 可以取消注释以查看时区偏移 GMT+8
+        };
+        
+        // 使用 Intl.DateTimeFormat 获取北京时间的日期部分
+        // 'sv-SE' 格式最接近 YYYY-MM-DD
+        const formatter = new Intl.DateTimeFormat('sv-SE', options); 
+        const beijingDateParts = formatter.formatToParts(now);
+
+        // 提取年、月、日
+        const year = beijingDateParts.find(part => part.type === 'year').value;
+        const month = beijingDateParts.find(part => part.type === 'month').value;
+        const day = beijingDateParts.find(part => part.type === 'day').value;
+        
+        const finalDate = `${year}-${month}-${day}`;
+        
+        // console.log('[Date Debug] Intl Formatted Parts:', beijingDateParts); // 移除日志
+        // console.log('[Date Debug] Final Challenge Date (YYYY-MM-DD):', finalDate); // 移除日志
+
+        return finalDate;
     }
     
     // 获取当前日期的每日挑战高分
