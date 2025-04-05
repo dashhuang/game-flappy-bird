@@ -242,12 +242,13 @@
                                         <th>玩家名称</th>
                                         <th>分数</th>
                                         <th>日期</th>
+                                        <th>IP地址</th>
                                         <th>操作</th>
                                     </tr>
                                 </thead>
                                 <tbody id="endlessLeaderboardData">
                                     <tr>
-                                        <td colspan="5" class="loading">加载中...</td>
+                                        <td colspan="6" class="loading">加载中...</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -279,12 +280,13 @@
                                         <th>玩家名称</th>
                                         <th>分数</th>
                                         <th>日期</th>
+                                        <th>IP地址</th>
                                         <th>操作</th>
                                     </tr>
                                 </thead>
                                 <tbody id="challengeLeaderboardData">
                                     <tr>
-                                        <td colspan="5" class="loading">加载中...</td>
+                                        <td colspan="6" class="loading">加载中...</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -333,6 +335,7 @@
                                     <th>分数</th>
                                     <th>日期</th>
                                     <th>模式</th>
+                                    <th>IP地址</th>
                                     <th>操作</th>
                                 </tr>
                             </thead>
@@ -510,7 +513,7 @@
                 const password = document.getElementById('adminPassword').value;
                 
                 // 显示加载中
-                document.getElementById('endlessLeaderboardData').innerHTML = '<tr><td colspan="5" class="loading">加载中...</td></tr>';
+                document.getElementById('endlessLeaderboardData').innerHTML = '<tr><td colspan="6" class="loading">加载中...</td></tr>';
                 
                 const response = await fetch(`/api/get-leaderboard?mode=endless&sortBy=${sortBy}&page=1&pageSize=20`, {
                     headers: {
@@ -526,7 +529,7 @@
                     const data = result.data || [];
                     
                     if (data.length === 0) {
-                        tableBody.innerHTML = '<tr><td colspan="5" class="empty-data">暂无排行榜数据</td></tr>';
+                        tableBody.innerHTML = '<tr><td colspan="6" class="empty-data">暂无排行榜数据</td></tr>';
                         return;
                     }
                     
@@ -541,6 +544,7 @@
                             <td>${item.playerName}</td>
                             <td>${item.score}</td>
                             <td>${formattedDate}</td>
+                            <td>${item.ip || '未知'}</td>
                             <td><button class="delete-btn" data-id="${item.id}">删除</button></td>
                         `;
                         tableBody.appendChild(row);
@@ -556,11 +560,11 @@
                     });
                 } else {
                     document.getElementById('endlessLeaderboardData').innerHTML = 
-                        `<tr><td colspan="5" class="error">获取数据失败: ${result.error || '未知错误'}</td></tr>`;
+                        `<tr><td colspan="6" class="error">获取数据失败: ${result.error || '未知错误'}</td></tr>`;
                 }
             } catch (error) {
                 document.getElementById('endlessLeaderboardData').innerHTML = 
-                    `<tr><td colspan="5" class="error">加载数据时出错: ${error.message || '连接服务器失败'}</td></tr>`;
+                    `<tr><td colspan="6" class="error">加载数据时出错: ${error.message || '连接服务器失败'}</td></tr>`;
             }
         }
         
@@ -570,7 +574,7 @@
                 const password = document.getElementById('adminPassword').value;
                 
                 // 显示加载中
-                document.getElementById('challengeLeaderboardData').innerHTML = '<tr><td colspan="5" class="loading">加载中...</td></tr>';
+                document.getElementById('challengeLeaderboardData').innerHTML = '<tr><td colspan="6" class="loading">加载中...</td></tr>';
                 
                 const params = new URLSearchParams({
                     mode: 'challenge',
@@ -597,7 +601,7 @@
                     const data = result.data || [];
                     
                     if (data.length === 0) {
-                        tableBody.innerHTML = '<tr><td colspan="5" class="empty-data">暂无排行榜数据</td></tr>';
+                        tableBody.innerHTML = '<tr><td colspan="6" class="empty-data">暂无排行榜数据</td></tr>';
                         return;
                     }
                     
@@ -612,6 +616,7 @@
                             <td>${item.playerName}</td>
                             <td>${item.score}</td>
                             <td>${formattedDate}</td>
+                            <td>${item.ip || '未知'}</td>
                             <td><button class="delete-btn" data-id="${item.id}">删除</button></td>
                         `;
                         tableBody.appendChild(row);
@@ -627,11 +632,11 @@
                     });
                 } else {
                     document.getElementById('challengeLeaderboardData').innerHTML = 
-                        `<tr><td colspan="5" class="error">获取数据失败: ${result.error || '未知错误'}</td></tr>`;
+                        `<tr><td colspan="6" class="error">获取数据失败: ${result.error || '未知错误'}</td></tr>`;
                 }
             } catch (error) {
                 document.getElementById('challengeLeaderboardData').innerHTML = 
-                    `<tr><td colspan="5" class="error">加载数据时出错: ${error.message || '连接服务器失败'}</td></tr>`;
+                    `<tr><td colspan="6" class="error">加载数据时出错: ${error.message || '连接服务器失败'}</td></tr>`;
             }
         }
         
@@ -701,6 +706,7 @@
                             <td>${item.score}</td>
                             <td>${formattedDate}</td>
                             <td>${modeText}</td>
+                            <td>${item.ip || '未知'}</td>
                             <td><button class="delete-btn" data-id="${item.id}">删除</button></td>
                         `;
                         tableBody.appendChild(row);

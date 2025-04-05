@@ -12,6 +12,9 @@ export default async function handler(req, res) {
   }
   
   try {
+    // 获取用户IP地址
+    const ip = getClientIP(req);
+    
     // 创建Redis客户端并连接
     const redis = await createClient({
       url: process.env.REDIS_URL
@@ -60,7 +63,8 @@ export default async function handler(req, res) {
       name,
       score: parseInt(score),
       timestamp,
-      mode
+      mode,
+      ip: ip || '未知IP' // 添加IP地址
     };
     
     // 如果是每日挑战模式，添加日期
@@ -75,7 +79,7 @@ export default async function handler(req, res) {
     // 处理记录
     if (existingRecord === null) {
       // 没有找到匹配记录，创建新记录
-      console.log(`为用户 ${name} 创建新的分数记录: ${score}分, 模式: ${mode}${date ? ', 日期: ' + date : ''}`);
+      console.log(`为用户 ${name} (IP: ${ip}) 创建新的分数记录: ${score}分, 模式: ${mode}${date ? ', 日期: ' + date : ''}`);
       
       const newId = Date.now().toString();
       await redis.hSet(`score:${newId}`, scoreDataToSave);
@@ -95,7 +99,7 @@ export default async function handler(req, res) {
       }
     } else if (needToUpdateScore) {
       // 找到匹配记录且新分数更高，更新记录
-      console.log(`更新用户 ${name} 的分数记录: 从 ${existingRecord.score} 到 ${score}分, 模式: ${mode}${date ? ', 日期: ' + date : ''}`);
+      console.log(`更新用户 ${name} (IP: ${ip}) 的分数记录: 从 ${existingRecord.score} 到 ${score}分, 模式: ${mode}${date ? ', 日期: ' + date : ''}`);
       
       await redis.hSet(`score:${existingRecordId}`, scoreDataToSave);
       
@@ -116,7 +120,7 @@ export default async function handler(req, res) {
       }
     } else {
       // 找到匹配记录但新分数不高于现有分数，不做任何修改
-      console.log(`用户 ${name} 提交的分数 ${score} 不高于现有记录 ${existingRecord.score}，保持不变`);
+      console.log(`用户 ${name} (IP: ${ip}) 提交的分数 ${score} 不高于现有记录 ${existingRecord.score}，保持不变`);
     }
     
     // 关闭连接
@@ -127,4 +131,33 @@ export default async function handler(req, res) {
     console.error('Redis错误:', error);
     return res.status(500).json({ error: error.message });
   }
+}
+
+// 获取客户端IP地址的辅助函数
+function getClientIP(req) {
+  // 从请求头获取IP地址
+  // Vercel环境
+  const vercelForwardedFor = req.headers['x-forwarded-for'];
+  if (vercelForwardedFor) {
+    return vercelForwardedFor.split(',')[0].trim();
+  }
+  
+  // 标准 forwarded-for 头
+  const forwardedFor = req.headers['x-forwarded-for'];
+  if (forwardedFor) {
+    return forwardedFor.split(',')[0].trim();
+  }
+  
+  // 直接连接
+  if (req.connection && req.connection.remoteAddress) {
+    return req.connection.remoteAddress;
+  }
+  
+  // 套接字
+  if (req.socket && req.socket.remoteAddress) {
+    return req.socket.remoteAddress;
+  }
+  
+  // 若无法获取，返回未知
+  return '未知IP';
 } 

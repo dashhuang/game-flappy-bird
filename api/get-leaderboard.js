@@ -118,7 +118,8 @@ export default async function handler(req, res) {
             originalScore: scoreData.score, // 保存原始分数字符串
             timestamp: scoreData.timestamp ? parseInt(scoreData.timestamp) : 0,
             date: dateValue || new Date().toISOString().split('T')[0],
-            mode: scoreData.mode || 'endless'
+            mode: scoreData.mode || 'endless',
+            ip: scoreData.ip || '未知' // 添加IP地址
           });
         }
       }
