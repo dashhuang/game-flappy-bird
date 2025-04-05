@@ -6,9 +6,9 @@ export default async function handler(req, res) {
   }
   
   try {
-    // 获取分页参数
+    // 获取分页参数 - 增加默认每页数量到50条
     const page = parseInt(req.query.page) || 1;
-    const pageSize = parseInt(req.query.pageSize) || 20;
+    const pageSize = parseInt(req.query.pageSize) || 50;
     const sortBy = req.query.sortBy || 'time'; // 'time' 或 'score'
     
     // 创建Redis客户端并连接
