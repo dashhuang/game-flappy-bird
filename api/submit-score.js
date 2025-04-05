@@ -140,42 +140,64 @@ export default async function handler(req, res) {
       console.log(`用户 ${name} (IP: ${ip}) 提交的分数 ${score} 不高于现有记录 ${existingRecord.score}，保持不变`);
     }
     
-    // 如果是挑战模式，且分数大于50，自动屏蔽用户IP
-    if (mode === 'challenge' && parseInt(score) > 50) {
-      const blockedIpHashPrefix = 'blocked:ip:';
-      const blockReason = `自动屏蔽：挑战模式得分超过50分（${score}分）`;
-      
-      console.log(`自动屏蔽IP: ${ip}, 原因: ${blockReason}`);
-      
-      // 添加到屏蔽索引
-      await redis.sAdd(blockedIpIndexKey, ip);
-      // 为了兼容性，也添加到旧的集合中
-      await redis.sAdd(blockedIpSetKey, ip);
-      
-      // 存储屏蔽详细信息
-      const blockInfo = {
-        ip,
-        timestamp,
-        reason: blockReason,
-        blockType: 'auto',
-        score: parseInt(score),
-        playerName: name
-      };
-      
-      if (date) {
-        blockInfo.date = date;
-      }
-      
-      await redis.hSet(blockedIpHashPrefix + ip, blockInfo);
-    }
-    
-    // 关闭连接
+    // 在记录分数逻辑完成后，先断开Redis连接并返回成功响应
     await redis.disconnect();
+    
+    // 如果是挑战模式，且分数大于50，异步执行IP屏蔽逻辑（不等待完成）
+    if (mode === 'challenge' && parseInt(score) > 50) {
+      // 使用非阻塞方式执行屏蔽操作，不影响响应返回
+      autoBlockIpAsync(ip, name, parseInt(score), date, timestamp);
+    }
     
     return res.status(200).json({ success: true });
   } catch (error) {
     console.error('Redis错误:', error);
     return res.status(500).json({ error: error.message });
+  }
+}
+
+// 异步执行自动屏蔽IP的函数，与主请求处理分离
+async function autoBlockIpAsync(ip, playerName, score, date, timestamp) {
+  try {
+    // 创建新的Redis连接
+    const redis = await createClient({
+      url: process.env.REDIS_URL
+    }).connect();
+    
+    const blockedIpSetKey = 'blocked:ips';
+    const blockedIpIndexKey = 'blocked:ips:index';
+    const blockedIpHashPrefix = 'blocked:ip:';
+    const blockReason = `自动屏蔽：挑战模式得分超过50分（${score}分）`;
+    
+    console.log(`自动屏蔽IP: ${ip}, 原因: ${blockReason}`);
+    
+    // 添加到屏蔽索引
+    await redis.sAdd(blockedIpIndexKey, ip);
+    // 为了兼容性，也添加到旧的集合中
+    await redis.sAdd(blockedIpSetKey, ip);
+    
+    // 存储屏蔽详细信息
+    const blockInfo = {
+      ip,
+      timestamp,
+      reason: blockReason,
+      blockType: 'auto',
+      score,
+      playerName
+    };
+    
+    if (date) {
+      blockInfo.date = date;
+    }
+    
+    await redis.hSet(blockedIpHashPrefix + ip, blockInfo);
+    
+    // 完成后关闭连接
+    await redis.disconnect();
+    console.log(`完成IP ${ip} 的自动屏蔽`);
+  } catch (error) {
+    console.error(`自动屏蔽IP ${ip} 时出错:`, error);
+    // 错误被吞掉，不会影响主流程
   }
 }
 
