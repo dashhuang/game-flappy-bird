@@ -363,14 +363,15 @@
                 
                 const response = await fetch('/api/admin-get-all-records');
                 
-                // 检查响应格式
+                // 首先获取响应文本
+                const responseText = await response.text();
+                
+                // 尝试解析为JSON
                 let data;
                 try {
-                    data = await response.json();
+                    data = JSON.parse(responseText);
                 } catch (jsonError) {
-                    // 如果JSON解析失败，尝试获取文本内容
-                    const textContent = await response.text();
-                    throw new Error(`JSON解析失败：${jsonError.message}，原始响应：${textContent.substring(0, 200)}...`);
+                    throw new Error(`JSON解析失败：${jsonError.message}，原始响应：${responseText.substring(0, 200)}...`);
                 }
                 
                 if (response.ok) {

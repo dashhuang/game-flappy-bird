@@ -118,11 +118,32 @@ export default async function handler(req, res) {
       // 关闭Redis连接
       await redis.disconnect();
       
-      return res.status(200).json({
+      // 构造响应对象
+      const responseData = {
         records: recordsArray,
         database: dbInfo,
         totalCount: recordsArray.length
+      };
+      
+      // 安全地序列化JSON，处理可能的循环引用
+      const safeJson = JSON.stringify(responseData, (key, value) => {
+        if (key === 'formatted' && typeof value === 'object') {
+          // 确保格式化后的对象可以被序列化
+          return {
+            score: value.score || 0,
+            timestamp: value.timestamp || 0,
+            date: value.date || new Date().toISOString(),
+            mode: value.mode || 'endless'
+          };
+        }
+        return value;
       });
+      
+      // 设置正确的Content-Type头部
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      
+      // 发送响应
+      return res.status(200).send(safeJson);
     } catch (mainError) {
       // 确保Redis连接关闭
       if (redis) {
