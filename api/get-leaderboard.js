@@ -39,41 +39,47 @@ export default async function handler(req, res) {
       url: process.env.REDIS_URL
     }).connect();
     
-    // 确定要查询的键
-    let keys = [];
-    
-    if (mode === 'endless') {
-      // 仅查询无尽模式
-      keys.push('scores:endless');
-    } else if (mode === 'challenge') {
-      if (date) {
-        // 特定日期的挑战模式
-        keys.push(`scores:challenge:${date}`);
-      } else {
-        // 所有挑战模式
-        keys.push('scores:challenge');
-      }
-    } else {
-      // 获取所有游戏模式的键
-      const allKeys = await redis.keys('scores:*');
-      keys = allKeys;
-      // 添加总分数键
-      keys.push('scores');
-    }
-    
-    // 去重
-    keys = [...new Set(keys)];
-    
     const leaderboardData = [];
     
-    // 处理每个集合键
-    for (const key of keys) {
-      // 从Redis获取分数ID，按排序分数降序排列
-      const scoreIds = await redis.zRange(key, 0, -1, {
-        REV: true // 降序排列
-      });
+    // 首先确定查询范围
+    if (mode) {
+      // 特定模式
+      let scoreKey = `scores:${mode}`;
       
-      // 获取每个分数的详细信息
+      // 如果是挑战模式且指定了日期
+      if (mode === 'challenge' && date) {
+        scoreKey = `scores:${mode}:${date}`;
+      }
+      
+      // 检查集合是否存在
+      const keyExists = await redis.exists(scoreKey);
+      if (keyExists) {
+        await loadDataFromKey(scoreKey);
+      }
+    } else {
+      // 全部模式 - 先获取无尽模式
+      const endlessKey = 'scores:endless';
+      if (await redis.exists(endlessKey)) {
+        await loadDataFromKey(endlessKey);
+      }
+      
+      // 获取挑战模式通用数据
+      const challengeKey = 'scores:challenge';
+      if (await redis.exists(challengeKey)) {
+        await loadDataFromKey(challengeKey);
+      }
+      
+      // 获取挑战模式日期数据
+      const challengeDateKeys = await redis.keys('scores:challenge:*');
+      for (const dateKey of challengeDateKeys) {
+        await loadDataFromKey(dateKey);
+      }
+    }
+    
+    // 从指定键加载数据的内部函数
+    async function loadDataFromKey(key) {
+      const scoreIds = await redis.zRange(key, 0, -1, { REV: true });
+      
       for (const id of scoreIds) {
         // 避免重复记录
         if (leaderboardData.some(item => item.id === id)) {
@@ -81,19 +87,37 @@ export default async function handler(req, res) {
         }
         
         const scoreData = await redis.hGetAll(`score:${id}`);
-        if (scoreData && Object.keys(scoreData).length > 0) {
-          // 如果指定了模式但记录不匹配，则跳过
-          if (mode && scoreData.mode !== mode) {
-            continue;
+        if (Object.keys(scoreData).length > 0) {
+          // 处理分数 - 保持与原始数据类型一致但确保是数值
+          let scoreValue = scoreData.score;
+          if (scoreValue) {
+            // 尝试转换为数值用于排序，但保留原始格式
+            const numericScore = Number(scoreValue);
+            if (!isNaN(numericScore)) {
+              scoreValue = numericScore;
+            }
+          } else {
+            scoreValue = 0;
           }
           
-          // 将ID添加到数据中，以便前端可以删除特定记录
+          // 处理日期格式
+          let dateValue = scoreData.date;
+          if (!dateValue && scoreData.timestamp) {
+            const timestamp = parseInt(scoreData.timestamp);
+            if (!isNaN(timestamp)) {
+              const date = new Date(timestamp);
+              dateValue = date.toISOString().split('T')[0];
+            }
+          }
+          
+          // 将数据添加到结果集
           leaderboardData.push({
             id: id,
             playerName: scoreData.name || '未知玩家',
-            score: parseInt(scoreData.score || '0'),
+            score: scoreValue,
+            originalScore: scoreData.score, // 保存原始分数字符串
             timestamp: scoreData.timestamp ? parseInt(scoreData.timestamp) : 0,
-            date: scoreData.date || (scoreData.timestamp ? new Date(parseInt(scoreData.timestamp)).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
+            date: dateValue || new Date().toISOString().split('T')[0],
             mode: scoreData.mode || 'endless'
           });
         }
@@ -102,8 +126,15 @@ export default async function handler(req, res) {
     
     // 根据排序选项排序
     if (sortBy === 'score') {
-      // 按分数降序排列
-      leaderboardData.sort((a, b) => b.score - a.score);
+      // 按分数降序排列，与游戏前端保持一致
+      leaderboardData.sort((a, b) => {
+        // 如果是数值类型，直接比较
+        if (typeof a.score === 'number' && typeof b.score === 'number') {
+          return b.score - a.score;
+        }
+        // 如果是字符串，转换为数值比较
+        return Number(b.score) - Number(a.score);
+      });
     } else {
       // 按时间戳降序排列（从新到旧）
       leaderboardData.sort((a, b) => b.timestamp - a.timestamp);
