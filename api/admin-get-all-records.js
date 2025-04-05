@@ -1,10 +1,6 @@
 import { createClient } from 'redis';
 
 export default async function handler(req, res) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: '方法不允许' });
-  }
-
   // 设置响应头，避免缓存
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -12,214 +8,368 @@ export default async function handler(req, res) {
   // 获取限制参数
   const limit = parseInt(req.query.limit) || 100;
   
-  // 创建超时处理
-  let timeoutId;
-  const timeoutPromise = new Promise((_, reject) => {
-    timeoutId = setTimeout(() => {
-      reject(new Error('API执行超时，请尝试减少获取的数据量'));
-    }, 8000); // 设置8秒超时，低于平台默认超时
-  });
+  // 存储调试信息
+  const debugInfo = {
+    steps: [],
+    collections: [],
+    errors: []
+  };
+  
+  const addDebugStep = (step, data) => {
+    debugInfo.steps.push({ step, data, time: new Date().toISOString() });
+    console.log(`[DEBUG] ${step}:`, data);
+  };
+  
+  const addError = (step, error) => {
+    debugInfo.errors.push({ step, error: error.message, time: new Date().toISOString() });
+    console.error(`[ERROR] ${step}:`, error);
+  };
   
   try {
+    addDebugStep('开始API处理', { method: req.method, limit });
+    
+    if (req.method !== 'GET') {
+      return res.status(405).json({ error: '方法不允许' });
+    }
+  
     // 创建Redis客户端并连接
     let redis;
     try {
+      addDebugStep('连接Redis', { url: process.env.REDIS_URL ? '已配置' : '未配置' });
+      
       redis = await createClient({
         url: process.env.REDIS_URL || 'redis://localhost:6379',
         socket: {
-          connectTimeout: 5000, // 连接超时5秒
+          connectTimeout: 10000, // 连接超时10秒
           reconnectStrategy: false // 不自动重连
         }
       }).connect();
+      
+      addDebugStep('Redis连接成功', { connected: !!redis });
     } catch (connError) {
-      console.error('Redis连接错误:', connError);
+      addError('Redis连接失败', connError);
       return res.status(500).json({ 
         error: '无法连接到数据库',
-        details: connError.message 
+        details: connError.message,
+        debug: debugInfo
       });
+    }
+    
+    // 测试Redis连接
+    try {
+      const pingResult = await redis.ping();
+      addDebugStep('Redis Ping测试', { result: pingResult });
+    } catch (pingError) {
+      addError('Redis Ping失败', pingError);
     }
     
     // 用于存储完整数据
     const allRecords = new Map(); // 使用Map避免重复记录
     let recordCount = 0;
     
+    // 获取额外的数据库信息
+    const dbInfo = {
+      totalKeys: 0,
+      collections: [],
+      allSets: []
+    };
+    
+    // 首先尝试获取所有键
+    let allKeys = [];
     try {
-      // 获取额外的数据库信息
-      const dbInfo = {
-        totalKeys: 0,
-        collections: [],
-        allSets: []
-      };
+      // 使用SCAN替代KEYS
+      let cursor = '0';
+      let scanCount = 0;
+      const maxScanCount = 10; // 增加扫描次数
       
-      // 获取Redis中的所有键，但限制数量
-      let allKeys;
+      addDebugStep('开始扫描Redis键', { maxScanCount });
+      
+      while (scanCount < maxScanCount) {
+        const result = await redis.scan(cursor, { COUNT: 200 });
+        cursor = result.cursor;
+        
+        if (result.keys && Array.isArray(result.keys)) {
+          allKeys.push(...result.keys);
+          addDebugStep(`SCAN #${scanCount+1}`, { 
+            cursor,
+            keysFound: result.keys.length, 
+            totalSoFar: allKeys.length 
+          });
+        }
+        
+        scanCount++;
+        
+        // 如果游标返回'0'，表示扫描完成
+        if (cursor === '0') {
+          addDebugStep('SCAN完成', { scanCount, totalKeys: allKeys.length });
+          break;
+        }
+      }
+      
+      if (scanCount >= maxScanCount && cursor !== '0') {
+        addDebugStep('SCAN达到最大次数限制', { maxScanCount, totalKeys: allKeys.length });
+      }
+      
+      dbInfo.totalKeys = allKeys.length;
+    } catch (keysError) {
+      addError('获取键列表失败', keysError);
+      // 错误时继续尝试其他方法
+    }
+    
+    addDebugStep('获取到的所有键', { keys: allKeys.slice(0, 50), totalCount: allKeys.length });
+    
+    // 识别所有集合前缀和scores相关集合
+    const collections = new Set();
+    let scoreSets = []; // 存储所有scores相关的集合
+    
+    allKeys.forEach(key => {
+      if (key.includes(':')) {
+        const prefix = key.split(':')[0];
+        collections.add(prefix);
+      }
+      
+      // 识别所有分数相关的集合
+      if (key === 'scores' || key.startsWith('scores:')) {
+        scoreSets.push(key);
+      }
+    });
+    
+    // 如果没有找到scores集合，尝试使用TYPE命令查看键类型
+    if (scoreSets.length === 0) {
+      addDebugStep('未找到scores集合，尝试检查键类型', {});
+      
       try {
-        // 使用SCAN替代KEYS，更适合生产环境
-        const keyResults = [];
-        let cursor = '0';
-        let scanCount = 0;
-        
-        // 最多扫描5次，每次最多获取100个键
-        while (cursor !== '0' && scanCount < 5) {
-          const result = await redis.scan(cursor, { COUNT: 100 });
-          cursor = result.cursor;
-          keyResults.push(...result.keys);
-          scanCount++;
-          
-          if (keyResults.length > 300) break; // 最多获取300个键
+        // 检查可能是有序集合的键
+        for (const key of allKeys) {
+          try {
+            const keyType = await redis.type(key);
+            if (keyType === 'zset') {
+              addDebugStep(`找到有序集合`, { key, type: keyType });
+              scoreSets.push(key);
+            }
+          } catch (typeError) {
+            addError(`检查键类型失败: ${key}`, typeError);
+          }
         }
-        
-        allKeys = keyResults;
-        dbInfo.totalKeys = allKeys.length;
-      } catch (keysError) {
-        console.warn('获取所有键出错，使用空数组代替:', keysError);
-        allKeys = [];
+      } catch (typeCheckError) {
+        addError('检查键类型过程失败', typeCheckError);
+      }
+    }
+    
+    // 如果仍然没找到，至少添加默认的scores
+    if (scoreSets.length === 0) {
+      addDebugStep('未找到任何有序集合，添加默认scores集合', {});
+      scoreSets.push('scores');
+    }
+    
+    dbInfo.collections = Array.from(collections);
+    dbInfo.allSets = scoreSets;
+    debugInfo.collections = scoreSets;
+    
+    addDebugStep('找到的分数集合', { sets: scoreSets });
+    
+    // 从所有分数集合中获取记录
+    for (const setKey of scoreSets) {
+      if (recordCount >= limit) {
+        addDebugStep(`达到记录限制，停止处理`, { limit, current: recordCount });
+        break; 
       }
       
-      // 识别所有集合前缀
-      const collections = new Set();
-      const scoreSets = []; // 存储所有scores相关的集合
-      
-      allKeys.forEach(key => {
-        if (key.includes(':')) {
-          const prefix = key.split(':')[0];
-          collections.add(prefix);
-        }
-        
-        // 识别所有分数相关的集合
-        if (key === 'scores' || key.startsWith('scores:')) {
-          scoreSets.push(key);
-        }
-      });
-      
-      // 如果没有找到任何scores集合，至少添加默认的scores
-      if (scoreSets.length === 0) {
-        scoreSets.push('scores');
-      }
-      
-      dbInfo.collections = Array.from(collections);
-      dbInfo.allSets = scoreSets;
-      
-      console.log('找到以下分数集合:', scoreSets);
-      
-      // 从所有分数集合中获取记录，但限制获取的记录总数
-      for (const setKey of scoreSets) {
-        if (recordCount >= limit) break; // 如果已达到限制，停止获取更多数据
-        
-        let setIds = [];
-        try {
-          // 只获取前500条记录
-          const rangeLimit = Math.min(Math.floor(limit / scoreSets.length), 500);
-          setIds = await redis.zRange(setKey, 0, rangeLimit - 1, { REV: true });
-          console.log(`集合 ${setKey} 中获取 ${setIds.length} 条记录`);
-        } catch (rangeError) {
-          console.warn(`从集合 ${setKey} 获取ID出错，将跳过该集合:`, rangeError);
+      let setIds = [];
+      try {
+        // 检查集合是否存在
+        const exists = await redis.exists(setKey);
+        if (!exists) {
+          addDebugStep(`集合不存在`, { set: setKey });
           continue;
         }
         
-        // 获取每个记录的详情
-        let processedCount = 0;
-        for (const id of setIds) {
-          if (recordCount >= limit) break; // 检查是否达到总限制
+        // 获取集合类型
+        const keyType = await redis.type(setKey);
+        addDebugStep(`集合类型`, { set: setKey, type: keyType });
+        
+        if (keyType !== 'zset') {
+          addDebugStep(`集合不是有序集合，跳过`, { set: setKey, type: keyType });
+          continue;
+        }
+        
+        // 获取集合大小
+        const setSize = await redis.zCard(setKey);
+        addDebugStep(`集合大小`, { set: setKey, size: setSize });
+        
+        if (setSize === 0) {
+          addDebugStep(`集合为空，跳过`, { set: setKey });
+          continue;
+        }
+        
+        // 获取集合成员
+        const rangeLimit = Math.min(Math.floor(limit / scoreSets.length), 1000);
+        setIds = await redis.zRange(setKey, 0, rangeLimit - 1, { REV: true });
+        addDebugStep(`获取集合成员`, { 
+          set: setKey, 
+          requestedLimit: rangeLimit,
+          membersFound: setIds.length 
+        });
+      } catch (setError) {
+        addError(`处理集合失败: ${setKey}`, setError);
+        continue;
+      }
+      
+      // 获取每个记录的详情
+      addDebugStep(`开始处理集合成员`, { set: setKey, members: setIds.length });
+      
+      for (const id of setIds) {
+        if (recordCount >= limit) break;
+        
+        // 如果这个ID已经处理过，跳过
+        if (allRecords.has(id)) continue;
+        
+        try {
+          // 构建记录键名
+          const recordKey = `score:${id}`;
           
-          // 如果这个ID已经处理过，跳过
-          if (allRecords.has(id)) continue;
+          // 检查记录是否存在
+          const recordExists = await redis.exists(recordKey);
+          if (!recordExists) {
+            addDebugStep(`记录不存在`, { id, key: recordKey });
+            continue;
+          }
+          
+          // 获取记录详情
+          const scoreData = await redis.hGetAll(recordKey);
+          const fieldCount = Object.keys(scoreData).length;
+          
+          addDebugStep(`获取记录详情`, { 
+            id, 
+            fieldsFound: fieldCount,
+            sample: fieldCount > 0 ? Object.keys(scoreData).slice(0, 3) : []
+          });
+          
+          if (fieldCount > 0) {
+            // 添加记录
+            allRecords.set(id, {
+              id: id,
+              ...scoreData,
+              sourceSet: setKey,
+              // 添加格式化字段
+              formatted: {
+                score: parseInt(scoreData.score) || 0,
+                timestamp: scoreData.timestamp ? parseInt(scoreData.timestamp) : 0,
+                date: scoreData.timestamp 
+                  ? new Date(parseInt(scoreData.timestamp)).toISOString() 
+                  : new Date().toISOString(),
+                mode: scoreData.mode || 'endless'
+              }
+            });
+            
+            recordCount++;
+          }
+        } catch (recordError) {
+          addError(`处理记录失败: ${id}`, recordError);
+        }
+      }
+    }
+    
+    // 如果仍然没有数据，尝试获取所有hash类型的键
+    if (allRecords.size === 0) {
+      addDebugStep('未找到任何记录，尝试查找所有哈希类型的键', {});
+      
+      try {
+        for (const key of allKeys) {
+          if (recordCount >= limit) break;
           
           try {
-            const scoreData = await redis.hGetAll(`score:${id}`);
-            if (Object.keys(scoreData).length > 0) {
-              // 将所有字段原样保留，添加来源集合信息
-              allRecords.set(id, {
-                id: id,
-                ...scoreData,
-                sourceSet: setKey,
-                // 添加一些格式化的字段，方便前端显示
-                formatted: {
-                  score: parseInt(scoreData.score) || 0,
-                  timestamp: scoreData.timestamp ? parseInt(scoreData.timestamp) : 0,
-                  date: scoreData.timestamp 
-                    ? new Date(parseInt(scoreData.timestamp)).toISOString() 
-                    : new Date().toISOString(),
-                  mode: scoreData.mode || 'endless'
-                }
-              });
+            // 检查是否为哈希类型
+            const keyType = await redis.type(key);
+            if (keyType === 'hash' && key.startsWith('score:')) {
+              const id = key.substring(6); // 移除 "score:" 前缀
+              const scoreData = await redis.hGetAll(key);
               
-              recordCount++;
+              if (Object.keys(scoreData).length > 0) {
+                allRecords.set(id, {
+                  id: id,
+                  ...scoreData,
+                  sourceSet: '通过hash键发现',
+                  formatted: {
+                    score: parseInt(scoreData.score) || 0,
+                    timestamp: scoreData.timestamp ? parseInt(scoreData.timestamp) : 0,
+                    date: scoreData.timestamp 
+                      ? new Date(parseInt(scoreData.timestamp)).toISOString() 
+                      : new Date().toISOString(),
+                    mode: scoreData.mode || 'endless'
+                  }
+                });
+                
+                recordCount++;
+                addDebugStep(`通过hash键发现记录`, { id, key });
+              }
             }
-            
-            processedCount++;
-            // 每处理50条记录检查一次是否接近超时
-            if (processedCount % 50 === 0) {
-              // 不再等待，避免处理太久
-              if (processedCount >= 200) break;
-            }
-          } catch (dataError) {
-            console.warn(`获取记录 ${id} 详情出错，将跳过该记录:`, dataError);
+          } catch (hashError) {
+            addError(`检查hash键失败: ${key}`, hashError);
           }
         }
+      } catch (hashScanError) {
+        addError('扫描hash键过程失败', hashScanError);
       }
-      
-      // 转换为数组
-      const recordsArray = Array.from(allRecords.values());
-      
-      // 记录API调用
-      console.log(`管理员API请求: /api/admin-get-all-records?limit=${limit}`);
-      console.log(`返回 ${recordsArray.length} 条完整记录 (从 ${scoreSets.length} 个集合中)`);
-      
-      // 关闭Redis连接
+    }
+    
+    // 转换为数组
+    const recordsArray = Array.from(allRecords.values());
+    
+    addDebugStep('数据处理完成', { 
+      totalRecords: recordsArray.length,
+      setsProcessed: scoreSets.length
+    });
+    
+    // 关闭Redis连接
+    try {
       await redis.disconnect();
+      addDebugStep('Redis连接已关闭', {});
+    } catch (disconnectError) {
+      addError('关闭Redis连接失败', disconnectError);
+    }
+    
+    // 构造响应对象
+    const responseData = {
+      records: recordsArray,
+      database: dbInfo,
+      totalCount: recordsArray.length,
+      limitReached: recordCount >= limit,
+      message: recordCount >= limit ? `达到查询限制(${limit})，没有显示所有记录` : undefined,
+      debug: debugInfo
+    };
+    
+    // 安全地序列化JSON
+    try {
+      const safeJson = JSON.stringify(responseData);
+      return res.status(200).send(safeJson);
+    } catch (jsonError) {
+      addError('JSON序列化失败', jsonError);
       
-      // 清除超时
-      clearTimeout(timeoutId);
-      
-      // 构造响应对象
-      const responseData = {
-        records: recordsArray,
+      // 尝试更安全的序列化方式
+      const safeData = {
+        records: recordsArray.map(r => ({
+          id: r.id,
+          name: r.name || '未知',
+          score: r.score || '0',
+          mode: r.mode || 'endless',
+          sourceSet: r.sourceSet
+        })),
         database: dbInfo,
         totalCount: recordsArray.length,
-        limitReached: recordCount >= limit,
-        message: recordCount >= limit ? `达到查询限制(${limit})，没有显示所有记录` : undefined
+        debug: debugInfo,
+        error: '完整数据序列化失败，返回简化版本'
       };
       
-      // 安全地序列化JSON，处理可能的循环引用
-      const safeJson = JSON.stringify(responseData, (key, value) => {
-        if (key === 'formatted' && typeof value === 'object') {
-          // 确保格式化后的对象可以被序列化
-          return {
-            score: value.score || 0,
-            timestamp: value.timestamp || 0,
-            date: value.date || new Date().toISOString(),
-            mode: value.mode || 'endless'
-          };
-        }
-        return value;
-      });
-      
-      // 发送响应
-      return res.status(200).send(safeJson);
-    } catch (mainError) {
-      // 确保Redis连接关闭
-      if (redis) {
-        try {
-          await redis.disconnect();
-        } catch (disconnectError) {
-          console.error('关闭Redis连接出错:', disconnectError);
-        }
-      }
-      
-      // 清除超时
-      clearTimeout(timeoutId);
-      
-      throw mainError; // 重新抛出错误以便外层捕获
+      return res.status(200).json(safeData);
     }
   } catch (error) {
-    // 如果有超时ID，清除它
-    if (timeoutId) clearTimeout(timeoutId);
+    addError('API执行过程中出现未捕获的错误', error);
     
-    console.error('获取管理员记录时出错:', error);
     return res.status(500).json({ 
       error: '服务器错误：' + error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      debug: debugInfo
     });
   }
 } 

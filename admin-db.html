@@ -222,9 +222,20 @@
                         <option value="200">200条（可能较慢）</option>
                         <option value="500">500条（可能超时）</option>
                     </select>
+                    <button id="debugBtn" style="margin-left: 15px;">显示调试信息</button>
                     <div style="margin-top: 10px; font-size: 12px; color: #666;">
                         注意：加载太多数据可能导致API超时。如果出现超时错误，请减少加载数量。
                     </div>
+                </div>
+            </div>
+            
+            <div id="debugPanel" class="panel" style="display: none;">
+                <h2>API调试信息</h2>
+                <div style="margin-bottom: 10px;">
+                    <button id="closeDebugBtn">关闭调试信息</button>
+                </div>
+                <div id="debugInfo" class="json-view" style="max-height: 400px; overflow: auto;">
+                    无调试信息
                 </div>
             </div>
             
@@ -308,6 +319,7 @@
         let allRecords = [];
         let filteredRecords = [];
         let dbInfo = {};
+        let debugData = null;
         
         // DOM加载完成后初始化
         document.addEventListener('DOMContentLoaded', function() {
@@ -322,6 +334,10 @@
             document.getElementById('clearSearchBtn').addEventListener('click', clearSearch);
             document.getElementById('sortOption').addEventListener('change', applyFilters);
             document.getElementById('modeFilter').addEventListener('change', applyFilters);
+            
+            // 调试功能
+            document.getElementById('debugBtn').addEventListener('click', toggleDebugPanel);
+            document.getElementById('closeDebugBtn').addEventListener('click', toggleDebugPanel);
         });
         
         // 登录验证
@@ -428,6 +444,12 @@
                     
                     allRecords = data.records;
                     dbInfo = data.database || {};
+                    
+                    // 保存调试信息
+                    if (data.debug) {
+                        debugData = data.debug;
+                        console.log('已保存调试信息，可点击"显示调试信息"按钮查看');
+                    }
                     
                     // 更新数据库信息
                     updateDatabaseInfo(data);
@@ -707,6 +729,64 @@
                 
                 resultDiv.appendChild(closeButton);
             }
+        }
+        
+        // 切换调试面板显示
+        function toggleDebugPanel() {
+            const panel = document.getElementById('debugPanel');
+            
+            if (panel.style.display === 'none') {
+                panel.style.display = 'block';
+                
+                // 如果有调试数据，显示
+                if (debugData) {
+                    updateDebugInfo(debugData);
+                } else {
+                    document.getElementById('debugInfo').innerHTML = 
+                        '<div style="color: #888;">尚无调试数据，请刷新数据后查看。</div>';
+                }
+            } else {
+                panel.style.display = 'none';
+            }
+        }
+        
+        // 更新调试信息显示
+        function updateDebugInfo(data) {
+            const debugPanel = document.getElementById('debugInfo');
+            
+            // 创建HTML内容
+            let html = '<h3>数据库连接信息</h3>';
+            
+            // 添加调试步骤信息
+            if (data.steps && data.steps.length > 0) {
+                html += '<h4>API执行步骤</h4><ol>';
+                data.steps.forEach(step => {
+                    html += `<li><strong>${step.step}</strong> (${step.time})<br>`;
+                    html += `<pre>${JSON.stringify(step.data, null, 2)}</pre></li>`;
+                });
+                html += '</ol>';
+            }
+            
+            // 添加错误信息
+            if (data.errors && data.errors.length > 0) {
+                html += '<h4 style="color: #e74c3c;">错误信息</h4><ul>';
+                data.errors.forEach(err => {
+                    html += `<li><strong>${err.step}</strong> (${err.time})<br>`;
+                    html += `<div style="color: #e74c3c;">${err.error}</div></li>`;
+                });
+                html += '</ul>';
+            }
+            
+            // 添加集合信息
+            if (data.collections && data.collections.length > 0) {
+                html += '<h4>发现的分数集合</h4><ul>';
+                data.collections.forEach(collection => {
+                    html += `<li>${collection}</li>`;
+                });
+                html += '</ul>';
+            }
+            
+            debugPanel.innerHTML = html;
         }
     </script>
 </body>
