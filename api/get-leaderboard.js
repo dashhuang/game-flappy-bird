@@ -24,40 +24,56 @@ export default async function handler(req, res) {
     const skip = (page - 1) * pageSize;
     const limit = skip + pageSize - 1;
     
-    // 从Redis获取分页后的记录ID
-    const scoreIds = await redis.zRange('scores', 0, -1, {
-      REV: true // 降序排列
-    });
-    
+    // 用于存储排行榜数据
     const leaderboardData = [];
     
-    // 获取每个分数的详细信息
-    for (const id of scoreIds) {
-      const scoreData = await redis.hGetAll(`score:${id}`);
-      if (scoreData) {
-        // 将ID添加到数据中，以便前端可以删除特定记录
-        leaderboardData.push({
-          id: id,
-          playerName: scoreData.name || '未知玩家',
-          score: parseInt(scoreData.score) || 0,
-          timestamp: scoreData.timestamp ? parseInt(scoreData.timestamp) : 0,
-          date: scoreData.timestamp ? new Date(parseInt(scoreData.timestamp)).toISOString() : new Date().toISOString(),
-          mode: scoreData.mode || 'endless'
-        });
+    // 根据排序方式获取不同的数据集
+    if (sortBy === 'time') {
+      // 先获取所有ID，这里暂时无法直接从Redis获取按时间戳排序的数据
+      const allIds = await redis.zRange('scores', 0, -1, { REV: true });
+      
+      // 获取每个ID对应的详细信息
+      for (const id of allIds) {
+        const scoreData = await redis.hGetAll(`score:${id}`);
+        if (scoreData) {
+          leaderboardData.push({
+            id: id,
+            playerName: scoreData.name || '未知玩家',
+            score: parseInt(scoreData.score) || 0,
+            timestamp: scoreData.timestamp ? parseInt(scoreData.timestamp) : 0,
+            date: scoreData.timestamp ? new Date(parseInt(scoreData.timestamp)).toISOString() : new Date().toISOString(),
+            mode: scoreData.mode || 'endless'
+          });
+        }
+      }
+      
+      // 按时间戳从新到旧排序
+      leaderboardData.sort((a, b) => b.timestamp - a.timestamp);
+    } else {
+      // 按分数排序时，直接使用Redis的有序集合，直接获取当前页的数据
+      const pageScoreIds = await redis.zRange('scores', skip, skip + pageSize - 1, { REV: true });
+      
+      // 获取每个ID对应的详细信息
+      for (const id of pageScoreIds) {
+        const scoreData = await redis.hGetAll(`score:${id}`);
+        if (scoreData) {
+          leaderboardData.push({
+            id: id,
+            playerName: scoreData.name || '未知玩家',
+            score: parseInt(scoreData.score) || 0,
+            timestamp: scoreData.timestamp ? parseInt(scoreData.timestamp) : 0,
+            date: scoreData.timestamp ? new Date(parseInt(scoreData.timestamp)).toISOString() : new Date().toISOString(),
+            mode: scoreData.mode || 'endless'
+          });
+        }
       }
     }
     
-    // 根据排序参数对数据进行排序
+    // 如果是按时间排序，需要在内存中分页
+    let paginatedData = leaderboardData;
     if (sortBy === 'time') {
-      // 按时间戳降序排列（从新到旧）
-      leaderboardData.sort((a, b) => b.timestamp - a.timestamp);
-    } else if (sortBy === 'score') {
-      // 按分数降序排列（从高到低）
-      leaderboardData.sort((a, b) => b.score - a.score);
+      paginatedData = leaderboardData.slice(skip, skip + pageSize);
     }
-    
-    // 分页处理
-    const paginatedData = leaderboardData.slice(skip, skip + pageSize);
     
     // 记录API调用日志
     console.log(`管理员API请求: /api/get-leaderboard?page=${page}&pageSize=${pageSize}&sortBy=${sortBy}`);
