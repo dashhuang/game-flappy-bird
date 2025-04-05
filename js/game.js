@@ -321,7 +321,8 @@ class FlappyBirdGame {
         const playerNameInput = document.getElementById('player-name');
         if (playerNameInput) {
             playerNameInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
+                // 只有在按下 Enter 键并且不是在输入法组字状态时才提交
+                if (e.key === 'Enter' && !e.isComposing) { 
                     e.preventDefault(); // 阻止默认行为
                     this.submitScore(); // 提交分数
                 }
