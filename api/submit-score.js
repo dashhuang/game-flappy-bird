@@ -22,7 +22,13 @@ export default async function handler(req, res) {
     
     // 检查IP是否被屏蔽
     const blockedIpSetKey = 'blocked:ips';
-    const isBlocked = await redis.sIsMember(blockedIpSetKey, ip);
+    const blockedIpIndexKey = 'blocked:ips:index';
+    
+    // 优先使用新的索引，兼容旧数据
+    let isBlocked = await redis.sIsMember(blockedIpIndexKey, ip);
+    if (!isBlocked) {
+      isBlocked = await redis.sIsMember(blockedIpSetKey, ip);
+    }
     
     if (isBlocked) {
       console.log(`拒绝来自被屏蔽IP的分数提交: ${ip}, 用户: ${name}, 分数: ${score}，但返回成功响应`);
@@ -132,6 +138,35 @@ export default async function handler(req, res) {
     } else {
       // 找到匹配记录但新分数不高于现有分数，不做任何修改
       console.log(`用户 ${name} (IP: ${ip}) 提交的分数 ${score} 不高于现有记录 ${existingRecord.score}，保持不变`);
+    }
+    
+    // 如果是挑战模式，且分数大于50，自动屏蔽用户IP
+    if (mode === 'challenge' && parseInt(score) > 50) {
+      const blockedIpHashPrefix = 'blocked:ip:';
+      const blockReason = `自动屏蔽：挑战模式得分超过50分（${score}分）`;
+      
+      console.log(`自动屏蔽IP: ${ip}, 原因: ${blockReason}`);
+      
+      // 添加到屏蔽索引
+      await redis.sAdd(blockedIpIndexKey, ip);
+      // 为了兼容性，也添加到旧的集合中
+      await redis.sAdd(blockedIpSetKey, ip);
+      
+      // 存储屏蔽详细信息
+      const blockInfo = {
+        ip,
+        timestamp,
+        reason: blockReason,
+        blockType: 'auto',
+        score: parseInt(score),
+        playerName: name
+      };
+      
+      if (date) {
+        blockInfo.date = date;
+      }
+      
+      await redis.hSet(blockedIpHashPrefix + ip, blockInfo);
     }
     
     // 关闭连接

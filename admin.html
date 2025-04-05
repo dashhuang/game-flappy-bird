@@ -278,6 +278,46 @@
             padding: 5px 10px;
             font-size: 14px;
         }
+        /* 屏蔽原因样式 */
+        .block-reason {
+            font-size: 13px;
+            color: #555;
+            margin-top: 4px;
+            line-height: 1.4;
+            display: block;
+        }
+        .block-timestamp {
+            font-size: 12px;
+            color: #777;
+            margin-top: 2px;
+            display: inline-block;
+        }
+        .block-type {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-right: 8px;
+        }
+        .block-type-manual {
+            background-color: #e74c3c;
+            color: white;
+        }
+        .block-type-auto {
+            background-color: #f39c12;
+            color: white;
+        }
+        .ip-details {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .player-info {
+            font-size: 13px;
+            color: #2c3e50;
+            margin-top: 3px;
+        }
         h1 {
             font-size: 2.2rem;
             margin-bottom: 30px;
@@ -531,10 +571,10 @@
                 </div>
                 
                 <div class="section">
-                    <h2>清空排行榜</h2>
-                    <p>警告：此操作将删除所有排行榜数据，且不可恢复！</p>
-                    <button id="clearButton">清空排行榜</button>
-                </div>
+                <h2>清空排行榜</h2>
+                <p>警告：此操作将删除所有排行榜数据，且不可恢复！</p>
+                <button id="clearButton">清空排行榜</button>
+            </div>
             </div>
             
             <!-- IP屏蔽管理标签页 -->
@@ -555,13 +595,14 @@
                         <table id="blockedIpsTable">
                             <thead>
                                 <tr>
-                                    <th width="70%">IP地址</th>
+                                    <th width="20%">IP地址</th>
+                                    <th width="50%">屏蔽详情</th>
                                     <th width="30%">操作</th>
                                 </tr>
                             </thead>
                             <tbody id="blockedIpsData">
                                 <tr>
-                                    <td colspan="2" class="loading">加载中...</td>
+                                    <td colspan="3" class="loading">加载中...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1058,7 +1099,7 @@
                 const password = document.getElementById('adminPassword').value;
                 
                 // 显示加载中
-                document.getElementById('blockedIpsData').innerHTML = '<tr><td colspan="2" class="loading">加载中...</td></tr>';
+                document.getElementById('blockedIpsData').innerHTML = '<tr><td colspan="3" class="loading">加载中...</td></tr>';
                 
                 const response = await fetch('/api/block-ip', {
                     method: 'POST',
@@ -1083,15 +1124,49 @@
                     const blockedIps = result.blockedIps || [];
                     
                     if (blockedIps.length === 0) {
-                        tableBody.innerHTML = '<tr><td colspan="2" class="empty-data">没有被屏蔽的IP</td></tr>';
+                        tableBody.innerHTML = '<tr><td colspan="3" class="empty-data">没有被屏蔽的IP</td></tr>';
                         return;
                     }
                     
                     // 将数据添加到表格中
-                    blockedIps.forEach(ip => {
+                    blockedIps.forEach(ipInfo => {
                         const row = document.createElement('tr');
+                        const ip = typeof ipInfo === 'string' ? ipInfo : ipInfo.ip;
+                        
+                        // 格式化时间戳
+                        let formattedTime = '';
+                        if (ipInfo.timestamp) {
+                            const date = new Date(parseInt(ipInfo.timestamp));
+                            formattedTime = `${date.getFullYear()}-${(date.getMonth()+1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+                        }
+                        
+                        // 屏蔽类型标识
+                        let blockTypeTag = '';
+                        if (typeof ipInfo !== 'string') {
+                            const blockType = ipInfo.blockType || 'manual';
+                            blockTypeTag = `<span class="block-type block-type-${blockType}">${blockType === 'auto' ? '自动' : '手动'}</span>`;
+                        }
+                        
+                        // 玩家信息（如果有）
+                        let playerInfo = '';
+                        if (ipInfo.playerName && ipInfo.score) {
+                            playerInfo = `<span class="player-info">玩家: ${ipInfo.playerName}, 分数: ${ipInfo.score}</span>`;
+                        }
+                        
+                        // 日期信息（如果有）
+                        let dateInfo = '';
+                        if (ipInfo.date) {
+                            dateInfo = `, 日期: ${ipInfo.date}`;
+                        }
+                        
                         row.innerHTML = `
                             <td class="ip-column">${ip}</td>
+                            <td class="ip-details">
+                                ${blockTypeTag}
+                                <span class="block-reason">${typeof ipInfo === 'string' ? '管理员手动屏蔽' : (ipInfo.reason || '未知原因')}</span>
+                                ${playerInfo}
+                                <span class="block-timestamp">${formattedTime ? '屏蔽时间: ' + formattedTime + dateInfo : ''}</span>
+                            </td>
                             <td><button class="unblock-btn table-action-btn" data-ip="${ip}">解除屏蔽</button></td>
                         `;
                         tableBody.appendChild(row);
@@ -1107,17 +1182,17 @@
                 } else {
                     console.error('获取屏蔽IP失败:', result.error || '未知错误');
                     document.getElementById('blockedIpsData').innerHTML = 
-                        `<tr><td colspan="2" class="error">获取数据失败: ${result.error || '未知错误'}</td></tr>`;
+                        `<tr><td colspan="3" class="error">获取数据失败: ${result.error || '未知错误'}</td></tr>`;
                 }
             } catch (error) {
                 console.error('加载屏蔽IP出错:', error);
                 document.getElementById('blockedIpsData').innerHTML = 
-                    `<tr><td colspan="2" class="error">加载数据时出错: ${error.message || '连接服务器失败'}</td></tr>`;
+                    `<tr><td colspan="3" class="error">加载数据时出错: ${error.message || '连接服务器失败'}</td></tr>`;
             }
         }
 
         // 屏蔽IP
-        async function blockIp(ip) {
+        async function blockIp(ip, reason = '管理员手动屏蔽') {
             try {
                 const password = document.getElementById('adminPassword').value;
                 
@@ -1134,7 +1209,8 @@
                     body: JSON.stringify({
                         password: password,
                         ip: ip.trim(),
-                        action: 'block'
+                        action: 'block',
+                        reason: reason
                     })
                 });
                 
@@ -1198,8 +1274,9 @@
 
         // 屏蔽指定IP（从表格中的操作）
         function blockIpFromTable(ip) {
-            if (confirm(`确定要屏蔽IP ${ip} 吗？该IP的所有分数提交将被拒绝。`)) {
-                blockIp(ip);
+            const reason = prompt(`请输入屏蔽IP ${ip} 的原因:`, '管理员手动屏蔽');
+            if (reason !== null) {
+                blockIp(ip, reason);
             }
         }
 

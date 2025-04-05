@@ -6,7 +6,7 @@ export default async function handler(req, res) {
   }
   
   // 验证管理员密码
-  const { password, ip, action } = req.body;
+  const { password, ip, action, reason, score, date } = req.body;
   
   // 检查必要参数
   if (!action) {
@@ -50,13 +50,36 @@ export default async function handler(req, res) {
       url: process.env.REDIS_URL
     }).connect();
     
-    // 被屏蔽IP使用一个集合存储
+    // 旧的IP集合键名 - 用于兼容性
     const blockedIpSetKey = 'blocked:ips';
+    // 新的IP详情哈希表前缀
+    const blockedIpHashPrefix = 'blocked:ip:';
+    // 被屏蔽IP的索引集合
+    const blockedIpIndexKey = 'blocked:ips:index';
     
     if (action === 'block') {
-      // 添加IP到屏蔽列表
+      // 获取屏蔽信息
+      const blockReason = reason || '管理员手动屏蔽';
+      const timestamp = Date.now();
+      const blockInfo = {
+        ip,
+        timestamp,
+        reason: blockReason,
+        blockType: 'manual'
+      };
+      
+      // 如果有附加信息（自动屏蔽时的得分等）
+      if (score) blockInfo.score = score;
+      if (date) blockInfo.date = date;
+      
+      // 添加IP到屏蔽索引
+      await redis.sAdd(blockedIpIndexKey, ip);
+      // 为兼容性，保留旧的集合
       await redis.sAdd(blockedIpSetKey, ip);
-      console.log(`管理员已屏蔽IP: ${ip}`);
+      // 存储IP详细屏蔽信息
+      await redis.hSet(blockedIpHashPrefix + ip, blockInfo);
+      
+      console.log(`已屏蔽IP: ${ip}，原因: ${blockReason}`);
       
       // 关闭Redis连接
       await redis.disconnect();
@@ -66,8 +89,13 @@ export default async function handler(req, res) {
         message: `IP ${ip} 已被成功屏蔽`
       });
     } else if (action === 'unblock') {
-      // 从屏蔽列表中移除IP
+      // 从屏蔽索引中移除IP
+      await redis.sRem(blockedIpIndexKey, ip);
+      // 为兼容性，从旧集合中移除
       await redis.sRem(blockedIpSetKey, ip);
+      // 删除IP详情哈希表
+      await redis.del(blockedIpHashPrefix + ip);
+      
       console.log(`管理员已解除屏蔽IP: ${ip}`);
       
       // 关闭Redis连接
@@ -78,26 +106,51 @@ export default async function handler(req, res) {
         message: `IP ${ip} 已被解除屏蔽`
       });
     } else if (action === 'check') {
-      // 检查IP是否在屏蔽列表中
-      const isBlocked = await redis.sIsMember(blockedIpSetKey, ip);
+      // 检查IP是否在屏蔽索引中
+      const isBlocked = await redis.sIsMember(blockedIpIndexKey, ip);
+      
+      let blockInfo = null;
+      if (isBlocked) {
+        // 获取IP详细屏蔽信息
+        blockInfo = await redis.hGetAll(blockedIpHashPrefix + ip);
+      }
       
       // 关闭Redis连接
       await redis.disconnect();
       
       return res.status(200).json({
         success: true,
-        isBlocked: isBlocked
+        isBlocked,
+        blockInfo
       });
     } else if (action === 'list') {
       // 获取所有被屏蔽的IP
-      const blockedIps = await redis.sMembers(blockedIpSetKey);
+      const blockedIps = await redis.sMembers(blockedIpIndexKey);
+      
+      // 获取每个IP的详细屏蔽信息
+      const blockedIpsDetails = [];
+      for (const ip of blockedIps) {
+        const details = await redis.hGetAll(blockedIpHashPrefix + ip);
+        
+        // 如果没有详细信息（可能是旧数据），则创建一个基本信息
+        if (!details || Object.keys(details).length === 0) {
+          blockedIpsDetails.push({
+            ip,
+            reason: '未知原因',
+            timestamp: 0,
+            blockType: 'manual'
+          });
+        } else {
+          blockedIpsDetails.push(details);
+        }
+      }
       
       // 关闭Redis连接
       await redis.disconnect();
       
       return res.status(200).json({
         success: true,
-        blockedIps: blockedIps
+        blockedIps: blockedIpsDetails
       });
     } else {
       // 关闭Redis连接
