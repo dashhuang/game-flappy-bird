@@ -362,11 +362,25 @@
                 showResult('正在加载数据...');
                 
                 const response = await fetch('/api/admin-get-all-records');
-                const data = await response.json();
+                
+                // 检查响应格式
+                let data;
+                try {
+                    data = await response.json();
+                } catch (jsonError) {
+                    // 如果JSON解析失败，尝试获取文本内容
+                    const textContent = await response.text();
+                    throw new Error(`JSON解析失败：${jsonError.message}，原始响应：${textContent.substring(0, 200)}...`);
+                }
                 
                 if (response.ok) {
+                    // 检查数据格式
+                    if (!data.records || !Array.isArray(data.records)) {
+                        throw new Error('API返回数据格式不正确，缺少records数组');
+                    }
+                    
                     allRecords = data.records;
-                    dbInfo = data.database;
+                    dbInfo = data.database || {};
                     
                     // 更新数据库信息
                     updateDatabaseInfo(data);
@@ -374,9 +388,14 @@
                     // 应用过滤和排序
                     applyFilters();
                     
-                    showResult('数据加载成功！', 'success');
+                    showResult(`成功加载 ${allRecords.length} 条记录！`, 'success');
                 } else {
-                    showResult(`加载数据失败: ${data.error || '未知错误'}`, 'error');
+                    let errorMessage = '未知错误';
+                    if (data.error) errorMessage = data.error;
+                    if (data.details) errorMessage += `<br>详情: ${data.details}`;
+                    if (data.stack) errorMessage += `<br>堆栈: ${data.stack}`;
+                    
+                    showResult(`加载数据失败: ${errorMessage}`, 'error');
                 }
             } catch (error) {
                 showResult(`加载数据出错: ${error.message}`, 'error');
@@ -385,12 +404,18 @@
         
         // 更新数据库信息显示
         function updateDatabaseInfo(data) {
-            document.getElementById('totalRecords').textContent = data.totalCount;
-            document.getElementById('totalKeys').textContent = data.database.totalKeys;
+            document.getElementById('totalRecords').textContent = data.totalCount || 0;
+            document.getElementById('totalKeys').textContent = data.database?.totalKeys || 0;
             
-            const collections = data.database.collections;
+            const collections = data.database?.collections || [];
             document.getElementById('collectionsCount').textContent = collections.length;
-            document.getElementById('collectionsDetail').textContent = collections.join(', ');
+            document.getElementById('collectionsDetail').textContent = collections.join(', ') || '-';
+            
+            // 添加分数集合信息
+            if (data.database?.allSets && data.database.allSets.length > 0) {
+                const setsElement = document.getElementById('collectionsDetail');
+                setsElement.innerHTML += '<br><strong>分数集合:</strong> ' + data.database.allSets.join(', ');
+            }
         }
         
         // 应用过滤和排序
