@@ -84,12 +84,47 @@
             padding-top: 20px;
             border-top: 1px solid #ddd;
         }
-        #refreshBtn {
+        #refreshBtn, .control-btn {
             background-color: #3498db;
             margin-right: 10px;
         }
-        #refreshBtn:hover {
+        #refreshBtn:hover, .control-btn:hover {
             background-color: #2980b9;
+        }
+        .control-panel {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        .sort-options {
+            margin-left: 15px;
+            display: flex;
+            align-items: center;
+        }
+        select {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            margin-left: 5px;
+        }
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+            align-items: center;
+        }
+        .pagination button {
+            margin: 0 5px;
+            background-color: #3498db;
+            padding: 8px 12px;
+        }
+        .pagination button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .page-info {
+            margin: 0 15px;
         }
     </style>
 </head>
@@ -107,7 +142,16 @@
         <div id="adminPanel">
             <div class="section">
                 <h2>查看排行榜</h2>
-                <button id="refreshBtn">刷新数据</button>
+                <div class="control-panel">
+                    <button id="refreshBtn">刷新数据</button>
+                    <div class="sort-options">
+                        <label for="sortOption">排序方式:</label>
+                        <select id="sortOption">
+                            <option value="time">按时间（新到旧）</option>
+                            <option value="score">按分数（高到低）</option>
+                        </select>
+                    </div>
+                </div>
                 <div id="leaderboardContainer">
                     <table id="leaderboardTable">
                         <thead>
@@ -123,6 +167,13 @@
                             <!-- 排行榜数据将在这里动态加载 -->
                         </tbody>
                     </table>
+                    <div class="pagination">
+                        <button id="firstPageBtn" class="control-btn">首页</button>
+                        <button id="prevPageBtn" class="control-btn">上一页</button>
+                        <span class="page-info" id="pageInfo">第 0/0 页</span>
+                        <button id="nextPageBtn" class="control-btn">下一页</button>
+                        <button id="lastPageBtn" class="control-btn">末页</button>
+                    </div>
                 </div>
             </div>
             
@@ -136,6 +187,12 @@
     </div>
 
     <script>
+        // 全局变量，用于存储分页和排序状态
+        let currentPage = 1;
+        let totalPages = 1;
+        let currentSortBy = 'time'; // 默认按时间排序
+        const pageSize = 20; // 每页显示数量
+        
         // 简单的密码验证
         document.getElementById('loginButton').addEventListener('click', async function() {
             const password = document.getElementById('adminPassword').value;
@@ -158,7 +215,7 @@
                     document.getElementById('adminPanel').style.display = 'block';
                     
                     // 加载排行榜数据
-                    loadLeaderboardData();
+                    loadLeaderboardData(1, 'time');
                 } else {
                     // 密码错误，显示错误消息
                     const loginResult = document.getElementById('loginResult');
@@ -180,19 +237,29 @@
         });
         
         // 加载排行榜数据
-        async function loadLeaderboardData() {
+        async function loadLeaderboardData(page = 1, sortBy = currentSortBy) {
+            currentPage = page;
+            currentSortBy = sortBy;
+            
             try {
-                const response = await fetch('/api/get-leaderboard');
-                const data = await response.json();
+                const response = await fetch(`/api/get-leaderboard?page=${page}&pageSize=${pageSize}&sortBy=${sortBy}`);
+                const result = await response.json();
                 
                 if (response.ok) {
                     const tableBody = document.getElementById('leaderboardData');
                     tableBody.innerHTML = ''; // 清空表格
                     
+                    const { data, pagination } = result;
+                    totalPages = pagination.totalPages;
+                    
                     if (data.length === 0) {
                         tableBody.innerHTML = '<tr><td colspan="5" style="text-align: center;">暂无排行榜数据</td></tr>';
+                        updatePaginationControls(0, 0);
                         return;
                     }
+                    
+                    // 更新分页控件
+                    updatePaginationControls(pagination.currentPage, pagination.totalPages);
                     
                     // 将数据添加到表格中
                     data.forEach((item, index) => {
@@ -200,8 +267,11 @@
                         const date = new Date(item.date);
                         const formattedDate = `${date.getFullYear()}-${(date.getMonth()+1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
                         
+                        // 计算每页的起始排名
+                        const ranking = (pagination.currentPage - 1) * pagination.pageSize + index + 1;
+                        
                         row.innerHTML = `
-                            <td>${index + 1}</td>
+                            <td>${ranking}</td>
                             <td>${item.playerName}</td>
                             <td>${item.score}</td>
                             <td>${formattedDate}</td>
@@ -217,11 +287,22 @@
                         });
                     });
                 } else {
-                    showResult('error', `获取排行榜数据失败: ${data.error || '未知错误'}`);
+                    showResult('error', `获取排行榜数据失败: ${result.error || '未知错误'}`);
                 }
             } catch (error) {
                 showResult('error', `加载排行榜数据时出错: ${error.message || '连接服务器失败'}`);
             }
+        }
+        
+        // 更新分页控件状态
+        function updatePaginationControls(currentPage, totalPages) {
+            document.getElementById('pageInfo').textContent = `第 ${currentPage}/${totalPages} 页`;
+            
+            // 更新按钮状态
+            document.getElementById('firstPageBtn').disabled = currentPage <= 1;
+            document.getElementById('prevPageBtn').disabled = currentPage <= 1;
+            document.getElementById('nextPageBtn').disabled = currentPage >= totalPages;
+            document.getElementById('lastPageBtn').disabled = currentPage >= totalPages;
         }
         
         // 删除单条记录
@@ -245,7 +326,7 @@
                     if (response.ok && data.success) {
                         showResult('success', '记录已成功删除');
                         // 重新加载排行榜数据
-                        loadLeaderboardData();
+                        loadLeaderboardData(currentPage, currentSortBy);
                     } else {
                         showResult('error', `删除失败: ${data.error || '操作失败'}`);
                     }
@@ -270,7 +351,37 @@
         
         // 刷新按钮
         document.getElementById('refreshBtn').addEventListener('click', function() {
-            loadLeaderboardData();
+            loadLeaderboardData(currentPage, currentSortBy);
+        });
+        
+        // 分页按钮事件
+        document.getElementById('firstPageBtn').addEventListener('click', function() {
+            if (currentPage > 1) {
+                loadLeaderboardData(1, currentSortBy);
+            }
+        });
+        
+        document.getElementById('prevPageBtn').addEventListener('click', function() {
+            if (currentPage > 1) {
+                loadLeaderboardData(currentPage - 1, currentSortBy);
+            }
+        });
+        
+        document.getElementById('nextPageBtn').addEventListener('click', function() {
+            if (currentPage < totalPages) {
+                loadLeaderboardData(currentPage + 1, currentSortBy);
+            }
+        });
+        
+        document.getElementById('lastPageBtn').addEventListener('click', function() {
+            if (currentPage < totalPages) {
+                loadLeaderboardData(totalPages, currentSortBy);
+            }
+        });
+        
+        // 排序选择事件
+        document.getElementById('sortOption').addEventListener('change', function() {
+            loadLeaderboardData(1, this.value);
         });
         
         // 清空排行榜功能
@@ -291,7 +402,7 @@
                     if (response.ok) {
                         showResult('success', data.message);
                         // 重新加载排行榜数据
-                        loadLeaderboardData();
+                        loadLeaderboardData(1, currentSortBy);
                     } else {
                         showResult('error', `错误：${data.error || '操作失败'}`);
                     }
