@@ -450,6 +450,11 @@
                 // 添加当前标签页的active类
                 this.classList.add('active');
                 document.getElementById(this.dataset.tab + 'Tab').classList.add('active');
+                
+                // 如果切换到IP屏蔽管理标签，刷新IP列表
+                if (this.dataset.tab === 'blockedIps') {
+                    loadBlockedIps();
+                }
             });
         });
         
@@ -922,7 +927,6 @@
                     },
                     body: JSON.stringify({
                         password: password,
-                        ip: '',
                         action: 'list'
                     })
                 });
@@ -931,7 +935,10 @@
                 
                 if (response.ok && result.success) {
                     const tableBody = document.getElementById('blockedIpsData');
-                    tableBody.innerHTML = ''; // 清空表格
+                    // 移除所有子元素和绑定的事件监听器
+                    while (tableBody.firstChild) {
+                        tableBody.removeChild(tableBody.firstChild);
+                    }
                     
                     const blockedIps = result.blockedIps || [];
                     
@@ -958,10 +965,12 @@
                         });
                     });
                 } else {
+                    console.error('获取屏蔽IP失败:', result.error || '未知错误');
                     document.getElementById('blockedIpsData').innerHTML = 
                         `<tr><td colspan="2" class="error">获取数据失败: ${result.error || '未知错误'}</td></tr>`;
                 }
             } catch (error) {
+                console.error('加载屏蔽IP出错:', error);
                 document.getElementById('blockedIpsData').innerHTML = 
                     `<tr><td colspan="2" class="error">加载数据时出错: ${error.message || '连接服务器失败'}</td></tr>`;
             }

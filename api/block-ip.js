@@ -8,10 +8,19 @@ export default async function handler(req, res) {
   // 验证管理员密码
   const { password, ip, action } = req.body;
   
-  if (!ip || !action) {
+  // 检查必要参数
+  if (!action) {
     return res.status(400).json({ 
       success: false,
-      error: '缺少IP地址或操作类型' 
+      error: '缺少操作类型' 
+    });
+  }
+  
+  // 对于非list操作，还需要检查IP地址
+  if (action !== 'list' && !ip) {
+    return res.status(400).json({ 
+      success: false,
+      error: '缺少IP地址' 
     });
   }
   
