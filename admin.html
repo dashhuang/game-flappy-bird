@@ -225,7 +225,12 @@
         // 加载排行榜数据
         async function loadLeaderboardData(page = 1) {
             try {
-                const response = await fetch(`/api/get-leaderboard?page=${page}&pageSize=10`);
+                const password = document.getElementById('adminPassword').value;
+                const response = await fetch(`/api/get-leaderboard?page=${page}&pageSize=10`, {
+                    headers: {
+                        'Admin-Password': password
+                    }
+                });
                 const result = await response.json();
                 
                 if (response.ok) {

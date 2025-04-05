@@ -5,6 +5,27 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: '方法不允许' });
   }
   
+  // 验证管理员密码（从请求头中获取）
+  const password = req.headers['admin-password'];
+  const correctPassword = process.env.ADMIN_PASSWORD;
+  
+  // 如果环境变量中没有设置密码，则返回错误
+  if (!correctPassword) {
+    console.error('未设置管理员密码环境变量(ADMIN_PASSWORD)');
+    return res.status(500).json({
+      success: false,
+      error: '服务器配置错误：未设置管理员密码'
+    });
+  }
+  
+  // 验证密码
+  if (!password || password !== correctPassword) {
+    return res.status(401).json({
+      success: false,
+      error: '密码错误或未提供密码'
+    });
+  }
+  
   try {
     // 获取分页参数
     const page = parseInt(req.query.page) || 1;
