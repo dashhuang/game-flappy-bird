@@ -1659,8 +1659,15 @@ class FlappyBirdGame {
             .then(data => {
                 this.leaderboardData = data;
                 
-                // 现在返回的数据已经按模式和日期筛选，不需要再次筛选
-                const filteredData = data;
+                // 确保数据与当前模式匹配
+                const filteredData = this.gameMode === GAME_MODE.ENDLESS 
+                    ? data.filter(item => item.mode === 'endless')
+                    : data.filter(item => {
+                        // 确保是挑战模式且日期匹配（如果指定了日期）
+                        return item.mode === 'challenge' && 
+                               (!this.currentChallengeDate || item.date === this.currentChallengeDate);
+                      });
+                
                 console.log(`${currentMode}${dateInfo}排行榜数据加载成功，共 ${filteredData.length} 条记录`);
                 
                 if (this.gameState !== GAME_STATE.PLAYING || forceProcess) {
@@ -2048,8 +2055,15 @@ class FlappyBirdGame {
         
         this.flags = [];
         
-        // 获取当前模式的排行榜数据（现在直接使用API返回的数据）
-        const modeLeaderboard = this.leaderboardData;
+        // 获取当前模式的排行榜数据
+        const modeLeaderboard = this.gameMode === GAME_MODE.ENDLESS 
+            ? this.leaderboardData.filter(item => item.mode === 'endless')
+            : this.leaderboardData.filter(item => {
+                // 确保是挑战模式且日期匹配（如果指定了日期）
+                return item.mode === 'challenge' && 
+                       (!this.currentChallengeDate || item.date === this.currentChallengeDate);
+              });
+              
         if (modeLeaderboard.length === 0) {
             console.warn(`${currentMode}${dateInfo}没有排行榜数据，不创建旗子`);
             return;
