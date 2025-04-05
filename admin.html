@@ -7,7 +7,7 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 800px;
+            max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
             line-height: 1.6;
@@ -59,10 +59,30 @@
         }
         
         /* 排行榜表格样式 */
+        .leaderboards-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .leaderboard-section {
+            flex: 1;
+            min-width: 45%;
+        }
+        .leaderboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .leaderboard-header h3 {
+            margin: 0;
+        }
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 20px;
+            margin-top: 10px;
+            background-color: white;
         }
         th, td {
             padding: 10px;
@@ -71,9 +91,17 @@
         }
         th {
             background-color: #f2f2f2;
+            position: sticky;
+            top: 0;
         }
         tr:hover {
             background-color: #f9f9f9;
+        }
+        .leaderboard-table-container {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
         }
         .delete-btn {
             padding: 5px 10px;
@@ -92,65 +120,83 @@
             background-color: #2980b9;
         }
         
-        /* 分页控件样式 */
-        .pagination {
-            margin-top: 20px;
-            text-align: center;
-        }
-        .pagination button {
-            background-color: #3498db;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            margin: 0 5px;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .pagination button:hover {
-            background-color: #2980b9;
-        }
-        .pagination button:disabled {
-            background-color: #ccc;
-            cursor: not-allowed;
-        }
-        .pagination-info {
+        /* 日期选择器样式 */
+        .date-selector {
+            display: flex;
+            align-items: center;
             margin-top: 10px;
-            font-size: 14px;
-            color: #666;
-            text-align: center;
+            margin-bottom: 15px;
         }
-        
-        /* 筛选器样式 */
-        .filters {
-            margin: 20px 0;
-            padding: 15px;
-            background-color: #f0f0f0;
-            border-radius: 8px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            align-items: center;
-        }
-        .filter-group {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .filter-group label {
+        .date-selector label {
+            margin-right: 10px;
             font-weight: bold;
         }
-        .filter-group select {
-            padding: 5px 10px;
+        .date-selector input {
+            max-width: 150px;
+        }
+        .date-selector button {
+            background-color: #3498db;
+            padding: 8px 12px;
+            margin-left: 10px;
+        }
+        
+        /* 排序选项 */
+        .sort-options {
+            display: flex;
+            align-items: center;
+            margin-left: auto;
+        }
+        .sort-options label {
+            margin-right: 10px;
+        }
+        .sort-options select {
+            padding: 5px;
             border-radius: 4px;
             border: 1px solid #ddd;
         }
-        #dateFilterContainer {
+        
+        /* 加载指示器 */
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-style: italic;
+            color: #666;
+        }
+        
+        /* 空数据提示 */
+        .empty-data {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-style: italic;
+        }
+        
+        /* 标签页样式 */
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            border-bottom: none;
+            border-radius: 4px 4px 0 0;
+            background-color: #f9f9f9;
+            margin-right: 5px;
+        }
+        .tab.active {
+            background-color: #fff;
+            border-color: #ddd;
+            border-bottom-color: #fff;
+            font-weight: bold;
+        }
+        .tab-content {
             display: none;
         }
-        #dateFilter {
-            padding: 5px 10px;
-            border-radius: 4px;
-            border: 1px solid #ddd;
+        .tab-content.active {
+            display: block;
         }
     </style>
 </head>
@@ -166,72 +212,175 @@
         </div>
         
         <div id="adminPanel">
-            <div class="section">
-                <h2>查看排行榜</h2>
-                <button id="refreshBtn">刷新数据</button>
+            <div class="tabs">
+                <div class="tab active" data-tab="leaderboards">游戏排行榜</div>
+                <div class="tab" data-tab="management">高级管理</div>
+            </div>
+            
+            <!-- 排行榜标签页 -->
+            <div id="leaderboardsTab" class="tab-content active">
+                <button id="refreshAllBtn">刷新所有数据</button>
                 
-                <div class="filters">
-                    <div class="filter-group">
-                        <label for="modeFilter">游戏模式:</label>
-                        <select id="modeFilter">
-                            <option value="">全部</option>
-                            <option value="endless">无尽模式</option>
-                            <option value="challenge">每日挑战</option>
-                        </select>
+                <div class="leaderboards-container">
+                    <!-- 无尽模式排行榜 -->
+                    <div class="leaderboard-section">
+                        <div class="leaderboard-header">
+                            <h3>无尽模式排行榜</h3>
+                            <div class="sort-options">
+                                <label for="endlessSortOption">排序:</label>
+                                <select id="endlessSortOption" class="sort-option" data-mode="endless">
+                                    <option value="score">按分数</option>
+                                    <option value="time">按时间</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="leaderboard-table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>排名</th>
+                                        <th>玩家名称</th>
+                                        <th>分数</th>
+                                        <th>日期</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="endlessLeaderboardData">
+                                    <tr>
+                                        <td colspan="5" class="loading">加载中...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                     
-                    <div class="filter-group" id="dateFilterContainer">
-                        <label for="dateFilter">挑战日期:</label>
-                        <input type="date" id="dateFilter">
-                    </div>
-                    
-                    <div class="filter-group">
-                        <label for="sortFilter">排序方式:</label>
-                        <select id="sortFilter">
-                            <option value="score">按分数排序</option>
-                            <option value="time">按时间排序</option>
-                        </select>
-                    </div>
-                    
-                    <button id="applyFilters">应用筛选</button>
-                </div>
-                
-                <div id="leaderboardContainer">
-                    <table id="leaderboardTable">
-                        <thead>
-                            <tr>
-                                <th>排名</th>
-                                <th>玩家名称</th>
-                                <th>分数</th>
-                                <th>日期</th>
-                                <th>模式</th>
-                                <th>操作</th>
-                            </tr>
-                        </thead>
-                        <tbody id="leaderboardData">
-                            <!-- 排行榜数据将在这里动态加载 -->
-                        </tbody>
-                    </table>
-                    <div class="pagination" id="pagination">
-                        <button id="firstPage">首页</button>
-                        <button id="prevPage">上一页</button>
-                        <span id="pageInfo">第 0/0 页</span>
-                        <button id="nextPage">下一页</button>
-                        <button id="lastPage">末页</button>
+                    <!-- 每日挑战排行榜 -->
+                    <div class="leaderboard-section">
+                        <div class="leaderboard-header">
+                            <h3>每日挑战排行榜</h3>
+                            <div class="sort-options">
+                                <label for="challengeSortOption">排序:</label>
+                                <select id="challengeSortOption" class="sort-option" data-mode="challenge">
+                                    <option value="score">按分数</option>
+                                    <option value="time">按时间</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="date-selector">
+                            <label for="challengeDateFilter">选择日期:</label>
+                            <input type="date" id="challengeDateFilter" value="">
+                            <button id="applyDateFilter">应用</button>
+                        </div>
+                        <div class="leaderboard-table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>排名</th>
+                                        <th>玩家名称</th>
+                                        <th>分数</th>
+                                        <th>日期</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="challengeLeaderboardData">
+                                    <tr>
+                                        <td colspan="5" class="loading">加载中...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
             
-            <div class="section">
-                <h2>清空排行榜</h2>
-                <p>警告：此操作将删除所有排行榜数据，且不可恢复！</p>
-                <button id="clearButton">清空排行榜</button>
+            <!-- 高级管理标签页 -->
+            <div id="managementTab" class="tab-content">
+                <div class="section">
+                    <h2>高级排行榜管理</h2>
+                    
+                    <div class="filters">
+                        <div class="filter-group">
+                            <label for="modeFilter">游戏模式:</label>
+                            <select id="modeFilter">
+                                <option value="">全部</option>
+                                <option value="endless">无尽模式</option>
+                                <option value="challenge">每日挑战</option>
+                            </select>
+                        </div>
+                        
+                        <div class="filter-group" id="dateFilterContainer">
+                            <label for="dateFilter">挑战日期:</label>
+                            <input type="date" id="dateFilter">
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label for="sortFilter">排序方式:</label>
+                            <select id="sortFilter">
+                                <option value="score">按分数排序</option>
+                                <option value="time">按时间排序</option>
+                            </select>
+                        </div>
+                        
+                        <button id="applyFilters">应用筛选</button>
+                    </div>
+                    
+                    <div id="advancedLeaderboardContainer">
+                        <table id="advancedLeaderboardTable">
+                            <thead>
+                                <tr>
+                                    <th>排名</th>
+                                    <th>玩家名称</th>
+                                    <th>分数</th>
+                                    <th>日期</th>
+                                    <th>模式</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="advancedLeaderboardData">
+                                <!-- 数据将在这里动态加载 -->
+                            </tbody>
+                        </table>
+                        <div class="pagination" id="pagination">
+                            <button id="firstPage">首页</button>
+                            <button id="prevPage">上一页</button>
+                            <span id="pageInfo">第 0/0 页</span>
+                            <button id="nextPage">下一页</button>
+                            <button id="lastPage">末页</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h2>清空排行榜</h2>
+                    <p>警告：此操作将删除所有排行榜数据，且不可恢复！</p>
+                    <button id="clearButton">清空排行榜</button>
+                </div>
             </div>
+            
             <div id="result" class="result" style="display: none;"></div>
         </div>
     </div>
 
     <script>
+        // 设置今天的日期为默认值
+        document.addEventListener('DOMContentLoaded', function() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('challengeDateFilter').value = today;
+        });
+        
+        // 标签页切换
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                // 移除所有标签页的active类
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                
+                // 添加当前标签页的active类
+                this.classList.add('active');
+                document.getElementById(this.dataset.tab + 'Tab').classList.add('active');
+            });
+        });
+        
         // 当前页码和分页状态
         let currentPage = 1;
         let paginationState = {
@@ -270,7 +419,33 @@
             }
             
             // 重新加载数据，并回到第一页
-            loadLeaderboardData(1);
+            loadAdvancedLeaderboardData(1);
+        });
+        
+        // 日期筛选应用按钮
+        document.getElementById('applyDateFilter').addEventListener('click', function() {
+            const date = document.getElementById('challengeDateFilter').value;
+            loadChallengeLeaderboard(date);
+        });
+        
+        // 排序选项更改事件
+        document.querySelectorAll('.sort-option').forEach(select => {
+            select.addEventListener('change', function() {
+                const mode = this.getAttribute('data-mode');
+                const sortBy = this.value;
+                
+                if (mode === 'endless') {
+                    loadEndlessLeaderboard(sortBy);
+                } else if (mode === 'challenge') {
+                    const date = document.getElementById('challengeDateFilter').value;
+                    loadChallengeLeaderboard(date, sortBy);
+                }
+            });
+        });
+        
+        // 刷新所有按钮
+        document.getElementById('refreshAllBtn').addEventListener('click', function() {
+            loadAllLeaderboards();
         });
         
         // 简单的密码验证
@@ -294,8 +469,8 @@
                     document.getElementById('loginScreen').style.display = 'none';
                     document.getElementById('adminPanel').style.display = 'block';
                     
-                    // 加载排行榜数据
-                    loadLeaderboardData(1);
+                    // 加载所有排行榜数据
+                    loadAllLeaderboards();
                 } else {
                     // 密码错误，显示错误消息
                     const loginResult = document.getElementById('loginResult');
@@ -316,8 +491,152 @@
             }
         });
         
-        // 加载排行榜数据
-        async function loadLeaderboardData(page = 1) {
+        // 加载所有排行榜
+        function loadAllLeaderboards() {
+            // 加载无尽模式排行榜
+            loadEndlessLeaderboard();
+            
+            // 加载今日挑战排行榜
+            const today = document.getElementById('challengeDateFilter').value;
+            loadChallengeLeaderboard(today);
+            
+            // 加载高级管理数据
+            loadAdvancedLeaderboardData(1);
+        }
+        
+        // 加载无尽模式排行榜
+        async function loadEndlessLeaderboard(sortBy = 'score') {
+            try {
+                const password = document.getElementById('adminPassword').value;
+                
+                // 显示加载中
+                document.getElementById('endlessLeaderboardData').innerHTML = '<tr><td colspan="5" class="loading">加载中...</td></tr>';
+                
+                const response = await fetch(`/api/get-leaderboard?mode=endless&sortBy=${sortBy}&page=1&pageSize=20`, {
+                    headers: {
+                        'Admin-Password': password
+                    }
+                });
+                const result = await response.json();
+                
+                if (response.ok) {
+                    const tableBody = document.getElementById('endlessLeaderboardData');
+                    tableBody.innerHTML = ''; // 清空表格
+                    
+                    const data = result.data || [];
+                    
+                    if (data.length === 0) {
+                        tableBody.innerHTML = '<tr><td colspan="5" class="empty-data">暂无排行榜数据</td></tr>';
+                        return;
+                    }
+                    
+                    // 将数据添加到表格中
+                    data.forEach((item, index) => {
+                        const row = document.createElement('tr');
+                        const date = new Date(item.date);
+                        const formattedDate = `${date.getFullYear()}-${(date.getMonth()+1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+                        
+                        row.innerHTML = `
+                            <td>${index + 1}</td>
+                            <td>${item.playerName}</td>
+                            <td>${item.score}</td>
+                            <td>${formattedDate}</td>
+                            <td><button class="delete-btn" data-id="${item.id}">删除</button></td>
+                        `;
+                        tableBody.appendChild(row);
+                    });
+                    
+                    // 添加删除按钮的事件监听
+                    tableBody.querySelectorAll('.delete-btn').forEach(button => {
+                        button.addEventListener('click', function() {
+                            if (confirm('确定要删除这条记录吗？')) {
+                                deleteRecord(this.getAttribute('data-id'));
+                            }
+                        });
+                    });
+                } else {
+                    document.getElementById('endlessLeaderboardData').innerHTML = 
+                        `<tr><td colspan="5" class="error">获取数据失败: ${result.error || '未知错误'}</td></tr>`;
+                }
+            } catch (error) {
+                document.getElementById('endlessLeaderboardData').innerHTML = 
+                    `<tr><td colspan="5" class="error">加载数据时出错: ${error.message || '连接服务器失败'}</td></tr>`;
+            }
+        }
+        
+        // 加载每日挑战排行榜
+        async function loadChallengeLeaderboard(date, sortBy = 'score') {
+            try {
+                const password = document.getElementById('adminPassword').value;
+                
+                // 显示加载中
+                document.getElementById('challengeLeaderboardData').innerHTML = '<tr><td colspan="5" class="loading">加载中...</td></tr>';
+                
+                const params = new URLSearchParams({
+                    mode: 'challenge',
+                    sortBy: sortBy,
+                    page: 1,
+                    pageSize: 20
+                });
+                
+                if (date) {
+                    params.append('date', date);
+                }
+                
+                const response = await fetch(`/api/get-leaderboard?${params.toString()}`, {
+                    headers: {
+                        'Admin-Password': password
+                    }
+                });
+                const result = await response.json();
+                
+                if (response.ok) {
+                    const tableBody = document.getElementById('challengeLeaderboardData');
+                    tableBody.innerHTML = ''; // 清空表格
+                    
+                    const data = result.data || [];
+                    
+                    if (data.length === 0) {
+                        tableBody.innerHTML = '<tr><td colspan="5" class="empty-data">暂无排行榜数据</td></tr>';
+                        return;
+                    }
+                    
+                    // 将数据添加到表格中
+                    data.forEach((item, index) => {
+                        const row = document.createElement('tr');
+                        const date = new Date(item.date);
+                        const formattedDate = `${date.getFullYear()}-${(date.getMonth()+1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+                        
+                        row.innerHTML = `
+                            <td>${index + 1}</td>
+                            <td>${item.playerName}</td>
+                            <td>${item.score}</td>
+                            <td>${formattedDate}</td>
+                            <td><button class="delete-btn" data-id="${item.id}">删除</button></td>
+                        `;
+                        tableBody.appendChild(row);
+                    });
+                    
+                    // 添加删除按钮的事件监听
+                    tableBody.querySelectorAll('.delete-btn').forEach(button => {
+                        button.addEventListener('click', function() {
+                            if (confirm('确定要删除这条记录吗？')) {
+                                deleteRecord(this.getAttribute('data-id'));
+                            }
+                        });
+                    });
+                } else {
+                    document.getElementById('challengeLeaderboardData').innerHTML = 
+                        `<tr><td colspan="5" class="error">获取数据失败: ${result.error || '未知错误'}</td></tr>`;
+                }
+            } catch (error) {
+                document.getElementById('challengeLeaderboardData').innerHTML = 
+                    `<tr><td colspan="5" class="error">加载数据时出错: ${error.message || '连接服务器失败'}</td></tr>`;
+            }
+        }
+        
+        // 加载高级管理排行榜数据（带分页）
+        async function loadAdvancedLeaderboardData(page = 1) {
             try {
                 const password = document.getElementById('adminPassword').value;
                 
@@ -346,7 +665,7 @@
                 const result = await response.json();
                 
                 if (response.ok) {
-                    const tableBody = document.getElementById('leaderboardData');
+                    const tableBody = document.getElementById('advancedLeaderboardData');
                     tableBody.innerHTML = ''; // 清空表格
                     
                     const data = result.data || [];
@@ -388,9 +707,11 @@
                     });
                     
                     // 添加删除按钮的事件监听
-                    document.querySelectorAll('.delete-btn').forEach(button => {
+                    tableBody.querySelectorAll('.delete-btn').forEach(button => {
                         button.addEventListener('click', function() {
-                            deleteRecord(this.getAttribute('data-id'));
+                            if (confirm('确定要删除这条记录吗？')) {
+                                deleteRecord(this.getAttribute('data-id'));
+                            }
                         });
                     });
                 } else {
@@ -418,39 +739,37 @@
         }
         
         // 分页事件监听
-        document.getElementById('firstPage').addEventListener('click', () => loadLeaderboardData(1));
-        document.getElementById('prevPage').addEventListener('click', () => loadLeaderboardData(currentPage - 1));
-        document.getElementById('nextPage').addEventListener('click', () => loadLeaderboardData(currentPage + 1));
-        document.getElementById('lastPage').addEventListener('click', () => loadLeaderboardData(paginationState.totalPages));
+        document.getElementById('firstPage').addEventListener('click', () => loadAdvancedLeaderboardData(1));
+        document.getElementById('prevPage').addEventListener('click', () => loadAdvancedLeaderboardData(currentPage - 1));
+        document.getElementById('nextPage').addEventListener('click', () => loadAdvancedLeaderboardData(currentPage + 1));
+        document.getElementById('lastPage').addEventListener('click', () => loadAdvancedLeaderboardData(paginationState.totalPages));
         
         // 删除单条记录
         async function deleteRecord(id) {
-            if (confirm('确定要删除这条记录吗？')) {
-                try {
-                    const password = document.getElementById('adminPassword').value;
-                    const response = await fetch('/api/delete-record', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ 
-                            id: id,
-                            password: password 
-                        })
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (response.ok && data.success) {
-                        showResult('success', '记录已成功删除');
-                        // 重新加载排行榜数据
-                        loadLeaderboardData(currentPage);
-                    } else {
-                        showResult('error', `删除失败: ${data.error || '操作失败'}`);
-                    }
-                } catch (error) {
-                    showResult('error', `删除操作时出错: ${error.message || '连接服务器失败'}`);
+            try {
+                const password = document.getElementById('adminPassword').value;
+                const response = await fetch('/api/delete-record', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        id: id,
+                        password: password 
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    showResult('success', '记录已成功删除');
+                    // 重新加载所有排行榜
+                    loadAllLeaderboards();
+                } else {
+                    showResult('error', `删除失败: ${data.error || '操作失败'}`);
                 }
+            } catch (error) {
+                showResult('error', `删除操作时出错: ${error.message || '连接服务器失败'}`);
             }
         }
         
@@ -466,11 +785,6 @@
                 resultDiv.style.display = 'none';
             }, 3000);
         }
-        
-        // 刷新按钮
-        document.getElementById('refreshBtn').addEventListener('click', function() {
-            loadLeaderboardData(currentPage);
-        });
         
         // 清空排行榜功能
         document.getElementById('clearButton').addEventListener('click', async function() {
@@ -489,8 +803,8 @@
                     
                     if (response.ok) {
                         showResult('success', data.message);
-                        // 重新加载排行榜数据（回到第一页）
-                        loadLeaderboardData(1);
+                        // 重新加载所有排行榜
+                        loadAllLeaderboards();
                     } else {
                         showResult('error', `错误：${data.error || '操作失败'}`);
                     }
