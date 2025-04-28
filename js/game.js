@@ -3,6 +3,27 @@
  * 具有响应式设计，支持桌面和移动设备，横屏和竖屏模式
  */
 
+// Import SCE SDK (will be available after bundling)
+import SceSDK from 'sce-game-sdk';
+
+if (typeof SceSDK !== 'undefined') {
+    console.log('SCE SDK 导入成功');
+  } else {
+    console.error('SCE SDK 导入失败');
+    throw Error("SCE SDK 导入失败")
+  }
+
+// Build Targets Constants
+const BUILD_TARGET_VERCEL = 'vercel';
+const BUILD_TARGET_SCE = 'sce';
+// Read build target injected by Webpack (defaults to 'vercel')
+const currentBuildTarget = process.env.BUILD_TARGET || BUILD_TARGET_VERCEL;
+console.log(`Game running with BUILD_TARGET: ${currentBuildTarget}`);
+
+// SCE Constants
+const SCE_RANKING_KEY_ENDLESS = 'flappy_bird_sce_endless';
+const SCE_RANKING_KEY_DAILY_PREFIX = 'flappy_bird_sce_daily_'; // Add date suffix later
+
 // 修复移动设备100vh问题
 function setViewportHeight() {
     // 计算实际视口高度
@@ -37,7 +58,8 @@ const GAME_STATE = {
     PLAYING: 1,
     GAME_OVER: 2,
     LOADING: 3,  // 加载状态
-    VICTORY: 4   // 胜利状态（挑战模式完成）
+    VICTORY: 4,   // 胜利状态（挑战模式完成）
+    SCE_LOGIN: 5 // Added state for SCE login process
 };
 
 // 游戏模式
@@ -178,6 +200,18 @@ class FlappyBirdGame {
         
         // 新增：记录生成的管道对总数
         this.pipePairSpawnCount = 0;
+
+        this.isSceSdkInitialized = false;
+        this.sceUserInfo = null;
+        this.isSceLoggedIn = false;
+
+        // Initialize SCE SDK if target is 'sce'
+        if (currentBuildTarget === BUILD_TARGET_SCE) {
+            this.initializeSceSDK();
+        } else {
+            // For Vercel build, load config immediately
+            this.loadGameConfig();
+        }
     }
     
     // 设置事件监听器
@@ -516,12 +550,18 @@ class FlappyBirdGame {
     }
     
     // 开始游戏
-    startGame() {
-        // 检查屏幕高度是否足够
-        if (!this.checkScreenHeight(window.innerHeight)) {
-            return; // 如果高度不足，不启动游戏
+    async startGame() {
+        if (!this.checkScreenHeight(window.innerHeight)) return;
+
+        // --- SCE Login Check ---
+        if (currentBuildTarget === BUILD_TARGET_SCE) {
+            if (!this.isSceSdkInitialized || !this.isSceLoggedIn) {
+                console.warn("SCE SDK not ready or not logged in, cannot start game.");
+                this.showError("SCE SDK 未初始化，无法开始游戏。");
+                return;
+            }
         }
-        
+
         this.gameState = GAME_STATE.PLAYING;
         this.startScreen.style.display = 'none';
         this.gameOverScreen.style.display = 'none';
@@ -715,32 +755,29 @@ class FlappyBirdGame {
         this.updateCurrentModeHighScore(this.score);
     }
     
-    // 游戏结束
-    gameOver() {
+    // 游戏结束 - Modified to be async and auto-submit
+    async gameOver() { // <--- Added async
         this.gameState = GAME_STATE.GAME_OVER;
         this.gameOverScreen.style.display = 'flex';
         this.finalScore.textContent = this.score;
-        
-        // 在游戏结束且分数超过阈值时加载排行榜数据
+
+        // 在游戏结束且分数超过阈值时加载排行榜数据 (Load first, display later)
         if (this.score >= this.scoreThreshold && !this.leaderboardUpdated) {
             this.leaderboardUpdated = true;
             console.log(`游戏结束，分数(${this.score})超过${this.scoreThreshold}分，更新排行榜数据`);
-            this.loadLeaderboardInBackground();
+            await this.loadLeaderboardInBackground(); // Await here to ensure data is potentially available for check
         }
-        
+
         // 获取并显示当前模式的最高分
         const currentHighScore = this.getCurrentModeHighScore();
         this.highScoreDisplay.textContent = currentHighScore;
-        
+
         // 显示当前游戏模式和日期
         const modeDisplay = document.getElementById('game-mode-display');
         const dateDisplay = document.getElementById('challenge-date-display');
-        
         if (modeDisplay) {
             modeDisplay.textContent = this.gameMode === GAME_MODE.ENDLESS ? '无尽模式' : '每日挑战';
         }
-        
-        // 如果是每日挑战模式，显示日期
         if (dateDisplay) {
             if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
                 dateDisplay.textContent = this.currentChallengeDate;
@@ -749,38 +786,44 @@ class FlappyBirdGame {
                 dateDisplay.parentElement.style.display = 'none';
             }
         }
-        
-        // 默认隐藏名字输入框
+
+        // 默认隐藏名字输入框 (checkIfScoreQualifies will handle showing it for Vercel)
         document.getElementById('name-input-container').style.display = 'none';
-        
-        // 确保按钮容器可见但内容不可见（保留布局空间）
+
         const buttonContainer = document.querySelector('.restart-button-container');
         if (buttonContainer) {
             buttonContainer.style.visibility = 'hidden';
-            // 确保按钮容器已经显示（防止初次加载时没有正确显示）
             buttonContainer.style.display = 'flex';
         }
-        
-        // 设置游戏刚刚结束的标志
+
         this.gameJustEnded = true;
         this.canRestartAfterGameOver = false;
-        
-        // 检查玩家分数是否满足条件
-        this.checkIfScoreQualifies();
-        
+
+        // 检查玩家分数是否有资格提交，并获取资格状态
+        const qualifiesForSubmit = await this.checkIfScoreQualifies();
+
         // 显示当前模式的排行榜数据
         this.displayLeaderboard(this.getLeaderboardForCurrentMode());
-        
-        // 检查是否需要延迟显示按钮
-        const needsDelay = this.shouldDelayButtons();
-        
+
+        // 检查是否需要延迟显示按钮 (Now based on Vercel mode qualification)
+        const needsDelay = (currentBuildTarget === BUILD_TARGET_VERCEL && qualifiesForSubmit && !this.scoreSubmitted);
+
+        // *** Auto-submit for SCE mode if qualified ***
+        if (currentBuildTarget === BUILD_TARGET_SCE && qualifiesForSubmit && !this.scoreSubmitted) {
+            console.log("SCE 模式：自动提交分数...");
+            await this.submitScore(); // Call submitScore automatically
+            // submitScore handles UI updates (like button text to '✓ 已提交')
+            // We don't need the input/submit button interaction here.
+        }
+        // ********************************************
+
         if (needsDelay) {
-            // 有资格提交分数时，延迟显示按钮
+            // Vercel模式下，有资格提交分数时，延迟显示按钮
             setTimeout(() => {
                 this.showGameOverButtons(buttonContainer);
             }, GAME_OVER_DELAY);
         } else {
-            // 没有资格提交分数时，立即显示按钮
+            // SCE模式，或Vercel模式下无资格/已提交，立即显示按钮
             this.showGameOverButtons(buttonContainer);
         }
     }
@@ -824,47 +867,118 @@ class FlappyBirdGame {
         return beatsPersonalBest && canEnterTopTwenty;
     }
     
-    // 检查分数是否有资格提交
-    checkIfScoreQualifies() {
-        // 重置提交按钮状态，防止状态残留
+    // 检查分数是否有资格提交 - Modified
+    async checkIfScoreQualifies() {
         const submitButton = document.getElementById('submit-score-button');
         if (submitButton) {
             submitButton.disabled = false;
-            submitButton.textContent = '提交分数';
+            // For SCE mode, we might hide the button anyway, so text content is less critical here.
+            // submitButton.textContent = '提交分数';
         }
-        
-        // 如果分数已经提交过，不再显示提交界面
-        if (this.scoreSubmitted) {
-            document.getElementById('name-input-container').style.display = 'none';
-            return;
-        }
-        
-        // 首先检查是否严格超过了游戏开始时的最高分（而非当前最高分）
-        const beatsPersonalBest = this.score > this.initialHighScore;
-        
-        // 检查是否能进入当前模式的全球排行榜前20
-        const canEnterTopTwenty = this.isTopTwentyScore(this.score);
-        
-        console.log(`分数检查 - 当前: ${this.score}, 初始最高分: ${this.initialHighScore}, 当前最高分: ${this.getCurrentModeHighScore()}, 超过最高分: ${beatsPersonalBest}, 能进前20: ${canEnterTopTwenty}`);
-        
-        // 更新当前模式的最高分
-        this.updateCurrentModeHighScore(this.score);
-        
-        // 显示或隐藏提交界面
+
         const nameInputContainer = document.getElementById('name-input-container');
-        
-        // 只有当两个条件都满足时才显示提交界面：1.严格打破最高分 2.能进入前20
-        if (beatsPersonalBest && canEnterTopTwenty) {
-            nameInputContainer.style.display = 'block';
-            console.log('显示提交成绩界面：打破最高分并且能进入前20');
+
+        // Hide initially, show only if needed (Vercel mode)
+        if (nameInputContainer) nameInputContainer.style.display = 'none';
+
+        if (this.scoreSubmitted) {
+            // Already submitted, no qualification check needed, ensure input is hidden
+            return false; // Does not qualify for *new* submission
+        }
+
+        const beatsPersonalBest = this.score > this.initialHighScore;
+
+        // --- Get Leaderboard for comparison ---
+        let modeLeaderboard = [];
+        let fetchError = false;
+
+        if (currentBuildTarget === BUILD_TARGET_SCE) {
+            // SCE Target: Fetch leaderboard from SCE
+             if (!this.isSceLoggedIn) {
+                // Attempt login first if needed for fetching rank
+                const loginSuccess = await this.sceLogin();
+                if (!loginSuccess) {
+                     console.warn("Cannot check SCE leaderboard qualification without login.");
+                     fetchError = true;
+                }
+             }
+             if (!fetchError && this.isSceLoggedIn) {
+                 try {
+                     const rankingKey = this.getSceRankingKey();
+                     const res = await SceSDK.cloud.get_top_rank(rankingKey, 20, false);
+                     const data = await res.json();
+                     if (data.code === 0 && data.rows) {
+                         modeLeaderboard = data.rows.map(item => ({ score: item.value }));
+                     } else {
+                         console.warn("Failed to fetch SCE leaderboard for qualification check.");
+                         fetchError = true;
+                     }
+                 } catch (err) {
+                     console.error("Error fetching SCE leaderboard for qualification check:", err);
+                     fetchError = true;
+                 }
+             }
+
         } else {
-            nameInputContainer.style.display = 'none';
-            if (!beatsPersonalBest) {
-                console.log('不显示提交界面：未打破最高分');
-            } else if (!canEnterTopTwenty) {
-                console.log('不显示提交界面：无法进入前20');
+            // Vercel Target: Fetch leaderboard from API
+            try {
+                 let apiUrl = '/api/get-scores?mode=' + (this.gameMode === GAME_MODE.ENDLESS ? 'endless' : 'challenge');
+                 if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
+                     apiUrl += `&date=${this.currentChallengeDate}`;
+                 }
+                 const response = await fetch(apiUrl);
+                 if (!response.ok) throw new Error("API fetch failed");
+                 modeLeaderboard = await response.json();
+            } catch (err) {
+                 console.error("Error fetching Vercel leaderboard for qualification check:", err);
+                 fetchError = true;
             }
         }
+        // --- End Leaderboard Fetch ---
+
+        let canEnterTopTwenty = false;
+        if (fetchError) {
+            console.warn("Leaderboard fetch failed, conservatively allowing submission check.");
+            canEnterTopTwenty = true;
+        } else if (!modeLeaderboard || modeLeaderboard.length === 0) {
+             canEnterTopTwenty = this.score > 0;
+        } else if (modeLeaderboard.length < 20) {
+             canEnterTopTwenty = this.score > 0;
+        } else {
+            try {
+                const sortedScores = [...modeLeaderboard]
+                                    .sort((a, b) => parseInt(b.score) - parseInt(a.score));
+                const lowestTopScore = parseInt(sortedScores[19].score);
+                canEnterTopTwenty = this.score > lowestTopScore;
+            } catch (error) {
+                 console.error('Error comparing score to leaderboard for qualification:', error);
+                 canEnterTopTwenty = true;
+            }
+        }
+
+        console.log(`分数检查 - 当前: ${this.score}, 初始最高分: ${this.initialHighScore}, 超过最高分: ${beatsPersonalBest}, 能进前20: ${canEnterTopTwenty}`);
+
+        this.updateCurrentModeHighScore(this.score);
+
+        const qualifies = beatsPersonalBest && canEnterTopTwenty;
+
+        if (qualifies) {
+             // Show input/button ONLY for Vercel target
+             if (currentBuildTarget === BUILD_TARGET_VERCEL) {
+                 if (nameInputContainer) nameInputContainer.style.display = 'block';
+                 console.log('显示提交成绩界面 (Vercel模式，输入名字)');
+             } else {
+                 // SCE mode: Already qualified, input/button not needed
+                 console.log('符合自动提交条件 (SCE 模式)');
+             }
+        } else {
+            if (!beatsPersonalBest) console.log('不显示提交界面：未打破最高分');
+            else if (!canEnterTopTwenty) console.log('不显示提交界面：无法进入前20');
+            // Ensure container is hidden if not qualified
+             if (nameInputContainer) nameInputContainer.style.display = 'none';
+        }
+
+        return qualifies; // Return qualification status
     }
     
     // 获取当前模式的排行榜数据
@@ -1653,53 +1767,96 @@ class FlappyBirdGame {
     }
     
     // 在后台加载排行榜数据
-    loadLeaderboardInBackground(forceProcess = false) {
+    async loadLeaderboardInBackground(forceProcess = false) {
         const currentMode = this.gameMode === GAME_MODE.ENDLESS ? '无尽模式' : '每日挑战';
         const dateInfo = this.gameMode === GAME_MODE.DAILY_CHALLENGE ? ` (${this.currentChallengeDate})` : '';
-        console.log(`加载${currentMode}${dateInfo}排行榜数据...`);
-        
-        // 构建API URL，添加模式和日期参数
-        let apiUrl = '/api/get-scores?mode=' + (this.gameMode === GAME_MODE.ENDLESS ? 'endless' : 'challenge');
-        
-        // 如果是每日挑战模式，添加日期参数
-        if (this.gameMode === GAME_MODE.DAILY_CHALLENGE && this.currentChallengeDate) {
-            apiUrl += `&date=${this.currentChallengeDate}`;
-        }
-        
-        fetch(apiUrl)
-            .then(response => {
+        console.log(`加载${currentMode}${dateInfo}排行榜数据... (Target: ${currentBuildTarget})`);
+
+        if (currentBuildTarget === BUILD_TARGET_SCE) {
+            // --- SCE Target ---
+            if (!this.isSceSdkInitialized || !this.isSceLoggedIn) {
+                 console.warn("SCE SDK not ready or not logged in, cannot load leaderboard.");
+                 // Try to login first? Or just show error? Let's try login.
+                 const loginSuccess = await this.sceLogin();
+                 if (!loginSuccess) {
+                    this.displayLeaderboard([]); // Show empty/error state
+                    return;
+                 }
+                 // If login succeeds, retry loading
+            }
+            try {
+                const rankingKey = this.getSceRankingKey();
+                // *** Add await here ***
+                const res = await SceSDK.cloud.get_top_rank(rankingKey, 20); // Get top 20
+                const data = await res.json(); // Keep .json() as per type definition
+
+                if (data.code === 0 && data.rows) {
+                    // Format SCE data {user_id, name, value} to match existing structure {name, score}
+                    this.leaderboardData = data.rows.map(item => ({
+                        name: item.name || `玩家${item.user_id.substring(0, 4)}`,
+                        score: item.value
+                    }));
+                    console.log(`SCE ${currentMode}${dateInfo}排行榜数据加载成功，共 ${this.leaderboardData.length} 条记录`);
+
+                    if (this.gameState !== GAME_STATE.PLAYING || forceProcess) {
+                        this.processLeaderboardForFlags(); // Process immediately if not playing or forced
+                         if (this.gameState === GAME_STATE.GAME_OVER || forceProcess) {
+                            this.displayLeaderboard(this.leaderboardData);
+                        }
+                    } else {
+                         console.log("游戏进行中，延迟处理旗子数据以避免闪烁 (SCE)");
+                    }
+
+                } else {
+                    console.error(`获取 SCE 排行榜失败 (code: ${data.code}):`, data);
+                    this.leaderboardData = [];
+                    if (this.gameState === GAME_STATE.GAME_OVER || forceProcess) {
+                        this.displayLeaderboard([]);
+                    }
+                }
+            } catch (error) {
+                 console.error('加载 SCE 排行榜数据时出错:', error);
+                 this.leaderboardData = [];
+                 if (this.gameState === GAME_STATE.GAME_OVER || forceProcess) {
+                    this.displayLeaderboard([]);
+                 }
+            }
+
+        } else {
+            // --- Vercel Target (Original Logic) ---
+            let apiUrl = '/api/get-scores?mode=' + (this.gameMode === GAME_MODE.ENDLESS ? 'endless' : 'challenge');
+            if (this.gameMode === GAME_MODE.DAILY_CHALLENGE && this.currentChallengeDate) {
+                apiUrl += `&date=${this.currentChallengeDate}`;
+            }
+
+            try {
+                const response = await fetch(apiUrl);
                 if (!response.ok) {
-                    console.error("获取排行榜数据失败，状态码:", response.status);
+                    console.error("获取 Vercel 排行榜数据失败，状态码:", response.status);
                     throw new Error('获取排行榜数据失败');
                 }
-                return response.json();
-            })
-            .then(data => {
+                const data = await response.json();
+
+                // Vercel API returns data in the expected format { name, score }
                 this.leaderboardData = data;
-                
-                // 现在返回的数据已经按模式和日期筛选，不需要再次筛选
-                const filteredData = data;
-                console.log(`${currentMode}${dateInfo}排行榜数据加载成功，共 ${filteredData.length} 条记录`);
-                
+                console.log(`Vercel ${currentMode}${dateInfo}排行榜数据加载成功，共 ${this.leaderboardData.length} 条记录`);
+
                 if (this.gameState !== GAME_STATE.PLAYING || forceProcess) {
                     this.processLeaderboardForFlags();
-                    
-                    // 添加：在游戏结束或强制处理时，显示排行榜数据
-                    if (this.gameState === GAME_STATE.GAME_OVER || forceProcess) {
-                        this.displayLeaderboard(filteredData);
+                     if (this.gameState === GAME_STATE.GAME_OVER || forceProcess) {
+                        this.displayLeaderboard(this.leaderboardData);
                     }
                 } else {
-                    console.log("游戏进行中，延迟处理旗子数据以避免闪烁");
+                    console.log("游戏进行中，延迟处理旗子数据以避免闪烁 (Vercel)");
                 }
-            })
-            .catch(error => {
-                console.error('加载排行榜数据失败:', error);
-                
-                // 错误处理：显示空排行榜
-                if (this.gameState === GAME_STATE.GAME_OVER) {
+            } catch (error) {
+                 console.error('加载 Vercel 排行榜数据失败:', error);
+                 this.leaderboardData = [];
+                 if (this.gameState === GAME_STATE.GAME_OVER || forceProcess) {
                     this.displayLeaderboard([]);
-                }
-            });
+                 }
+            }
+        }
     }
     
     // 显示排行榜
@@ -1749,82 +1906,133 @@ class FlappyBirdGame {
     }
     
     // 提交分数
-    submitScore() {
+    async submitScore() {
         const nameInput = document.getElementById('player-name');
         const submitButton = document.getElementById('submit-score-button');
-        
-        // 验证输入
-        if (!nameInput || !nameInput.value.trim()) {
-            alert('请输入您的名字');
-            return;
+
+        let playerName;
+        // SCE build uses SCE nickname, Vercel build uses input field
+        if (currentBuildTarget === BUILD_TARGET_SCE) {
+            if (!this.sceUserInfo || !this.sceUserInfo.name) {
+                console.warn("SCE user info not available, using default name.");
+                // Attempt to get user info again or use ID?
+                 try {
+                    this.sceUserInfo = SceSDK.get_user_info();
+                    playerName = this.sceUserInfo.name || `User_${this.sceUserInfo.user_id.substring(0,4)}`;
+                 } catch(err) {
+                     playerName = `User_${Date.now().toString().slice(-4)}`; // Fallback name
+                 }
+            } else {
+                playerName = this.sceUserInfo.name;
+            }
+            console.log(`Using SCE Nickname for submission: ${playerName}`);
+            // No need to validate input field in SCE mode if we use the nickname
+        } else {
+            // Vercel mode: validate input field
+            if (!nameInput || !nameInput.value.trim()) {
+                alert('请输入您的名字');
+                return;
+            }
+            playerName = nameInput.value.trim();
         }
-        
-        // 禁用按钮防止重复提交
+
+
+        // Disable button
         if (submitButton) {
             submitButton.disabled = true;
             submitButton.textContent = '提交中...';
         }
-        
-        // 准备提交数据
-        const scoreData = {
-            name: nameInput.value.trim(),
-            score: this.score.toString(),
-            mode: this.gameMode === GAME_MODE.ENDLESS ? 'endless' : 'challenge'
-        };
-        
-        // 如果是每日挑战模式，添加日期信息 (使用北京时间)
-        if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
-            scoreData.date = this.currentChallengeDate;
+
+        if (currentBuildTarget === BUILD_TARGET_SCE) {
+            // --- SCE Target ---
+            if (!this.isSceLoggedIn) {
+                const loginSuccess = await this.sceLogin();
+                if (!loginSuccess) {
+                    if (submitButton) { // Re-enable button on login failure
+                        submitButton.disabled = false;
+                        submitButton.textContent = '提交分数';
+                    }
+                    return; // Stop submission if login failed
+                }
+            }
+            try {
+                const rankingKey = this.getSceRankingKey();
+                console.log(`Submitting score ${this.score} to SCE key: ${rankingKey}`);
+                const res = await SceSDK.cloud.set_number(rankingKey, this.score);
+                const result = await res.json();
+
+                if (result.code === 0) {
+                    console.log('SCE score submitted successfully.');
+                    this.scoreSubmitted = true;
+                    if (submitButton) submitButton.textContent = '✓ 已提交';
+                    // Hide input container (even though we didn't use the input value)
+                    const nameInputContainer = document.getElementById('name-input-container');
+                    if (nameInputContainer) nameInputContainer.style.display = 'none';
+
+                     // Show loading state and reload leaderboard
+                     const leaderboardList = document.getElementById('leaderboard-list');
+                     if (leaderboardList) leaderboardList.innerHTML = '<div class="loading-spinner"></div><p>更新排行榜中...</p>';
+                     this.loadLeaderboardInBackground(true); // Force reload and display
+
+                } else {
+                    console.error('提交 SCE 分数失败:', result);
+                    alert('提交分数到 SCE 平台失败。');
+                    if (submitButton) { // Re-enable button on failure
+                        submitButton.disabled = false;
+                        submitButton.textContent = '提交分数';
+                    }
+                }
+            } catch (error) {
+                console.error('提交 SCE 分数时出错:', error);
+                alert('提交分数到 SCE 平台时出错，请重试。');
+                 if (submitButton) { // Re-enable button on error
+                    submitButton.disabled = false;
+                    submitButton.textContent = '提交分数';
+                }
+            }
+
+        } else {
+            // --- Vercel Target (Original Logic) ---
+            const scoreData = {
+                name: playerName,
+                score: this.score.toString(),
+                mode: this.gameMode === GAME_MODE.ENDLESS ? 'endless' : 'challenge'
+            };
+            if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
+                scoreData.date = this.currentChallengeDate;
+            }
+
+            try {
+                const response = await fetch('/api/submit-score', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(scoreData)
+                });
+                if (!response.ok) {
+                    throw new Error(`提交失败 (HTTP ${response.status})`);
+                }
+                const data = await response.json(); // Assuming API returns {} or similar on success
+
+                 console.log('Vercel score submitted successfully.');
+                 this.scoreSubmitted = true;
+                 if (submitButton) submitButton.textContent = '✓ 已提交';
+                 const nameInputContainer = document.getElementById('name-input-container');
+                 if (nameInputContainer) nameInputContainer.style.display = 'none';
+
+                 // Show loading state and reload leaderboard
+                 const leaderboardList = document.getElementById('leaderboard-list');
+                 if (leaderboardList) leaderboardList.innerHTML = '<div class="loading-spinner"></div><p>更新排行榜中...</p>';
+                 this.loadLeaderboardInBackground(true); // Force reload and display
+
+            } catch (error) {
+                 console.error('提交 Vercel 分数失败:', error);
+                 alert('提交失败，请重试。');
+                 if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.textContent = '提交分数';
+                 }
+            }
         }
-        
-        // 发送请求
-        fetch('/api/submit-score', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(scoreData)
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('提交失败');
-            }
-            return response.json();
-        })
-        .then(data => {
-            // 标记为已提交
-            this.scoreSubmitted = true;
-            
-            // 更新按钮文本
-            if (submitButton) {
-                submitButton.textContent = '✓ 已提交';
-            }
-            
-            // 隐藏输入框
-            const nameInputContainer = document.getElementById('name-input-container');
-            if (nameInputContainer) {
-                nameInputContainer.style.display = 'none';
-            }
-            
-            // 在重新加载排行榜前显示加载中状态
-            const leaderboardList = document.getElementById('leaderboard-list');
-            if (leaderboardList) {
-                leaderboardList.innerHTML = '<div class="loading-spinner"></div><p>更新排行榜中...</p>';
-            }
-            
-            // 重新加载排行榜
-            this.loadLeaderboardInBackground(true);
-        })
-        .catch(error => {
-            console.error('提交分数失败:', error);
-            alert('提交失败，请重试');
-            
-            // 重置按钮状态
-            if (submitButton) {
-                submitButton.disabled = false;
-                submitButton.textContent = '提交分数';
-            }
-        });
     }
     
     // 初始化默认配置（用作回退）
@@ -1863,69 +2071,56 @@ class FlappyBirdGame {
         this.GROUND_HEIGHT = 50;
     }
     
-    // 从服务器加载游戏配置
+    // 从服务器加载游戏配置 - Modified
     async loadGameConfig() {
-        try {
-            // 显示加载状态
-            this.gameState = GAME_STATE.LOADING;
-            if (this.loadingScreen) {
-                this.loadingScreen.style.display = 'flex';
-            }
-            
-            // 获取服务器配置
-            const response = await fetch(`/api/game-config?v=${Date.now()}`);
-            if (!response.ok) {
-                throw new Error('无法加载游戏配置');
-            }
-            
-            const config = await response.json();
-            
-            // 更新游戏配置
-            this.updateGameConfig(config);
-            
-            // 标记配置已加载
-            this.isConfigLoaded = true;
-            this.configLastChecked = Date.now();
-            
-            // 初始化游戏（仅在第一次加载时）
-            if (this.gameState === GAME_STATE.LOADING) {
-                this.initGameAfterConfigLoaded();
-            }
-            
-            console.log(`游戏配置已加载 - 版本: ${config.version}`);
-            
-            // 隐藏加载界面，显示开始界面
-            if (this.loadingScreen) {
-                this.loadingScreen.style.display = 'none';
-            }
-            
-            if (this.gameState === GAME_STATE.LOADING) {
-                this.gameState = GAME_STATE.MENU;
-                this.startScreen.style.display = 'flex';
-            }
-            
-            // 如果已经在游戏中，显示更新通知
-            if (this.gameState === GAME_STATE.PLAYING && this.gameVersion !== config.version) {
-                this.showUpdateNotification();
-            }
-            
+        if (currentBuildTarget === BUILD_TARGET_SCE) {
+            // --- SCE Target ---
+            console.log("SCE build target: Skipping loading config from /api/game-config. Using defaults.");
+            // Initialize with default config, SDK initialization handles the rest
+            this.initDefaultConfig();
+            this.isConfigLoaded = true; // Mark as loaded
+            // We need to ensure the game initializes after this in SCE mode
+            // This is handled by initializeSceSDK calling initGameWithLocalConfig
             return true;
-        } catch (error) {
-            console.error('加载游戏配置失败:', error);
-            
-            // 使用默认配置
-            console.log('使用默认配置继续游戏');
-            // 确保无论如何都初始化游戏
-            this.initGameAfterConfigLoaded();
-            
-            if (this.loadingScreen) {
-                this.loadingScreen.style.display = 'none';
+
+        } else {
+            // --- Vercel Target (Original Logic) ---
+            try {
+                this.gameState = GAME_STATE.LOADING;
+                if (this.loadingScreen) this.loadingScreen.style.display = 'flex';
+
+                const response = await fetch(`/api/game-config?v=${Date.now()}`);
+                if (!response.ok) throw new Error('无法加载游戏配置');
+                const config = await response.json();
+
+                this.updateGameConfig(config);
+                this.isConfigLoaded = true;
+                this.configLastChecked = Date.now();
+
+                 if (this.gameState === GAME_STATE.LOADING) { // Should always be true here
+                    this.initGameAfterConfigLoaded(); // Initialize game elements
+                }
+
+                console.log(`游戏配置已加载 - 版本: ${config.version} (Vercel)`);
+                if (this.loadingScreen) this.loadingScreen.style.display = 'none';
+                 // Set state to MENU only after initialization is complete
+                this.gameState = GAME_STATE.MENU;
+                if (this.startScreen) this.startScreen.style.display = 'flex';
+
+
+                return true;
+            } catch (error) {
+                console.error('加载 Vercel 游戏配置失败:', error);
+                console.log('使用默认配置继续游戏 (Vercel)');
+                this.initDefaultConfig(); // Ensure defaults are set
+                this.isConfigLoaded = true; // Mark as loaded even on failure to proceed
+                this.initGameAfterConfigLoaded(); // Initialize with defaults
+
+                if (this.loadingScreen) this.loadingScreen.style.display = 'none';
+                this.gameState = GAME_STATE.MENU;
+                if (this.startScreen) this.startScreen.style.display = 'flex';
+                return false;
             }
-            
-            this.gameState = GAME_STATE.MENU;
-            this.startScreen.style.display = 'flex';
-            
-            return false;
         }
     }
     
@@ -2189,6 +2384,155 @@ class FlappyBirdGame {
             this.lastFlagsDrawn = flagsDrawn;
         }
     }
+
+    // --- SCE SDK Specific Methods ---
+
+    initializeSceSDK() {
+        console.log("Attempting to initialize SCE SDK...");
+        try {
+            // Token is injected by Webpack DefinePlugin from environment variables
+            const token = process.env.SCE_DEVELOPER_TOKEN;
+            if (!token || token === 'YOUR_DEVELOPER_TOKEN_HERE' || token === '') {
+                console.error("SCE Developer Token is missing or invalid. Cannot initialize SDK. token:", token);
+                this.showError("SCE SDK 初始化失败：缺少开发者令牌。");
+                // Proceed with default config for local testing? Or block? Let's block.
+                this.gameState = GAME_STATE.MENU; // Or a dedicated error state
+                if (this.loadingScreen) this.loadingScreen.style.display = 'none';
+                if (this.startScreen) this.startScreen.style.display = 'flex';
+                return; // Stop initialization
+            }
+            SceSDK.init({
+                sce_developer_token: token,
+                env: 'master'
+            });
+            this.isSceSdkInitialized = true;
+            console.log('SCE SDK Initialized successfully.');
+            // Now we can proceed to load the game using default/local config
+            this.initGameWithLocalConfig();
+
+        } catch (error) {
+            console.error("Failed to initialize SCE SDK:", error);
+            this.showError("SCE SDK 初始化失败，请检查控制台。");
+            // Fallback or show error state
+            this.gameState = GAME_STATE.MENU;
+            if (this.loadingScreen) this.loadingScreen.style.display = 'none';
+            if (this.startScreen) this.startScreen.style.display = 'flex';
+        }
+    }
+
+    async sceLogin() {
+        if (!this.isSceSdkInitialized) {
+            console.error("SCE SDK not initialized, cannot login.");
+            this.showError("SCE SDK 未初始化，无法登录。");
+            return false;
+        }
+        if (this.isSceLoggedIn) {
+            console.log("Already logged into SCE.");
+            return true; // Already logged in
+        }
+
+        console.log("Attempting SCE Login...");
+        this.gameState = GAME_STATE.SCE_LOGIN; // Show login state
+        // Optional: Display a message like "正在登录 SCE 平台..."
+        this.showLoadingMessage("正在登录 SCE 平台...");
+
+        try {
+            await SceSDK.login();
+            this.isSceLoggedIn = true;
+            console.log('SCE Login Successful.');
+            try {
+                this.sceUserInfo = SceSDK.get_user_info();
+                console.log(`SCE User Info: ID=${this.sceUserInfo.user_id}, Name=${this.sceUserInfo.name}`);
+                // Can display welcome message in UI if needed
+                this.hideLoadingMessage(); // Hide login message
+                return true;
+            } catch (err) {
+                console.warn("Could not get SCE user info after login:", err);
+                this.hideLoadingMessage();
+                return true; // Login succeeded, getting info is optional
+            }
+        } catch (error) {
+            console.error(`SCE Login Failed: ${error}`);
+            this.showError("SCE 平台登录失败，无法进行游戏或提交分数。请刷新重试。");
+            this.gameState = GAME_STATE.MENU; // Revert to menu
+            this.hideLoadingMessage();
+            return false;
+        }
+    }
+
+    getSceRankingKey() {
+        if (this.gameMode === GAME_MODE.DAILY_CHALLENGE) {
+            return `${SCE_RANKING_KEY_DAILY_PREFIX}${this.currentChallengeDate}`;
+        } else {
+            return SCE_RANKING_KEY_ENDLESS;
+        }
+    }
+
+    // Helper to reset specific game logic parts needed before starting modes
+    resetGameLogicForNewGame() {
+        this.pipes = [];
+        this.score = 0;
+        this.pipesPassedCount = 0;
+        this.updateScore();
+        this.lastPipeSpawn = 0;
+        this.pipePairSpawnCount = 0;
+
+         // Reset difficulty parameters to initial/default
+        this.currentPipeGap = this.PIPE_GAP_INITIAL;
+        this.currentPipeSpawnInterval = this.PIPE_SPAWN_INTERVAL_INITIAL;
+        this.currentPipeSpeed = this.PIPE_SPEED_INITIAL;
+
+         // Reset flag placement status
+        if (this.flags && this.flags.length > 0) {
+            this.flags.forEach(flag => flag.placed = false);
+        }
+    }
+
+    // Helper function to show error messages (optional, create if needed)
+    showError(message) {
+        // Example: Display in a dedicated error div or use alert()
+        console.error("GAME ERROR:", message);
+        const errorDisplay = document.getElementById('error-display'); // Assuming you add this element
+        if (errorDisplay) {
+            errorDisplay.textContent = message;
+            errorDisplay.style.display = 'block';
+            setTimeout(() => { errorDisplay.style.display = 'none'; }, 5000); // Hide after 5s
+        } else {
+            alert(message); // Fallback
+        }
+    }
+     // Helper function to show loading messages (optional)
+    showLoadingMessage(message) {
+        if (this.loadingScreen) {
+            const loadingText = this.loadingScreen.querySelector('p'); // Assuming <p> for text
+            if (loadingText) loadingText.textContent = message;
+            this.loadingScreen.style.display = 'flex';
+        }
+    }
+    hideLoadingMessage() {
+         if (this.loadingScreen) {
+            this.loadingScreen.style.display = 'none';
+        }
+    }
+
+    // --- Add the missing method definition here ---
+    initGameWithLocalConfig() {
+        console.log("Initializing game using local/default configuration for SCE build.");
+        this.initDefaultConfig(); // Make sure defaults are set
+        this.isConfigLoaded = true; // Mark config as 'loaded'
+
+        this.initGameAfterConfigLoaded(); // Initialize actual game elements
+
+        // Proceed to Menu state
+        if (this.loadingScreen) this.loadingScreen.style.display = 'none';
+        this.gameState = GAME_STATE.MENU;
+        if (this.startScreen) this.startScreen.style.display = 'flex';
+
+        // Try SCE login in background after showing menu? Or wait for first action?
+        // Let's wait for the first action (startGame or submitScore) that requires login.
+        // this.sceLogin(); // Don't login immediately
+    }
+    // ---------------------------------------------
 }
 
 // 页面加载完成后初始化游戏

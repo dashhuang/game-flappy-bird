@@ -1,1 +1,19 @@
+# Dependencies
 node_modules/
+
+# Build output
+dist/
+
+# Environment variables file
+.env*
+*.env
+
+# IDE / Editor specific
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS specific
+.DS_Store
+Thumbs.db
