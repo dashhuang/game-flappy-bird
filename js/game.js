@@ -3,14 +3,15 @@
  * 具有响应式设计，支持桌面和移动设备，横屏和竖屏模式
  */
 
-// Import SCE SDK (will be available after bundling)
+// Import SCE SDK (will be available after bundling) - Updated import style
 import SceSDK from 'sce-game-sdk';
 
-if (typeof SceSDK !== 'undefined') {
+if (typeof SceSDK !== 'undefined' && SceSDK.init) { // Check for a function on SceSDK
     console.log('SCE SDK 导入成功');
   } else {
-    console.error('SCE SDK 导入失败');
-    throw Error("SCE SDK 导入失败")
+    console.error('SCE SDK 导入失败或结构不正确');
+    // Optionally, throw an error or prevent game initialization if critical
+    // throw new Error("SCE SDK 导入失败，游戏无法继续！");
   }
 
 // Build Targets Constants
@@ -905,12 +906,16 @@ class FlappyBirdGame {
              if (!fetchError && this.isSceLoggedIn) {
                  try {
                      const rankingKey = this.getSceRankingKey();
-                     const res = await SceSDK.cloud.get_top_rank(rankingKey, 20, false);
-                     const data = await res.json();
-                     if (data.code === 0 && data.rows) {
-                         modeLeaderboard = data.rows.map(item => ({ score: item.value }));
+                     const options = {
+                         key: rankingKey,
+                         limit: 20,
+                         without_name: false // For qualification, name is not strictly needed
+                     };
+                     const res = await SceSDK.cloud.get_top_rank(options);
+                     if (res.result && Array.isArray(res.result)) {
+                         modeLeaderboard = res.result.map(item => ({ score: item.value }));
                      } else {
-                         console.warn("Failed to fetch SCE leaderboard for qualification check.");
+                         console.warn("Failed to fetch SCE leaderboard for qualification check:", res.error);
                          fetchError = true;
                      }
                  } catch (err) {
@@ -1773,42 +1778,41 @@ class FlappyBirdGame {
         console.log(`加载${currentMode}${dateInfo}排行榜数据... (Target: ${currentBuildTarget})`);
 
         if (currentBuildTarget === BUILD_TARGET_SCE) {
-            // --- SCE Target ---
             if (!this.isSceSdkInitialized || !this.isSceLoggedIn) {
                  console.warn("SCE SDK not ready or not logged in, cannot load leaderboard.");
-                 // Try to login first? Or just show error? Let's try login.
                  const loginSuccess = await this.sceLogin();
                  if (!loginSuccess) {
-                    this.displayLeaderboard([]); // Show empty/error state
+                    this.displayLeaderboard([]);
                     return;
                  }
-                 // If login succeeds, retry loading
             }
             try {
                 const rankingKey = this.getSceRankingKey();
-                // *** Add await here ***
-                const res = await SceSDK.cloud.get_top_rank(rankingKey, 20); // Get top 20
-                const data = await res.json(); // Keep .json() as per type definition
+                const options = {
+                    key: rankingKey,
+                    limit: 20,
+                    without_name: false, // Default is false (include name)
+                    order_by: 'desc'
+                };
+                const res = await SceSDK.cloud.get_top_rank(options);
 
-                if (data.code === 0 && data.rows) {
-                    // Format SCE data {user_id, name, value} to match existing structure {name, score}
-                    this.leaderboardData = data.rows.map(item => ({
-                        name: item.name || `玩家${item.user_id.substring(0, 4)}`,
+                if (res.result && Array.isArray(res.result)) { // Check res.result for data
+                    this.leaderboardData = res.result.map(item => ({
+                        name: item.name || `玩家${item.user_id ? item.user_id.substring(0, 4) : ''}`,
                         score: item.value
                     }));
                     console.log(`SCE ${currentMode}${dateInfo}排行榜数据加载成功，共 ${this.leaderboardData.length} 条记录`);
 
                     if (this.gameState !== GAME_STATE.PLAYING || forceProcess) {
-                        this.processLeaderboardForFlags(); // Process immediately if not playing or forced
+                        this.processLeaderboardForFlags();
                          if (this.gameState === GAME_STATE.GAME_OVER || forceProcess) {
                             this.displayLeaderboard(this.leaderboardData);
                         }
                     } else {
                          console.log("游戏进行中，延迟处理旗子数据以避免闪烁 (SCE)");
                     }
-
                 } else {
-                    console.error(`获取 SCE 排行榜失败 (code: ${data.code}):`, data);
+                    console.error(`获取 SCE 排行榜失败:`, res.error || '返回数据格式不正确');
                     this.leaderboardData = [];
                     if (this.gameState === GAME_STATE.GAME_OVER || forceProcess) {
                         this.displayLeaderboard([]);
@@ -1821,7 +1825,6 @@ class FlappyBirdGame {
                     this.displayLeaderboard([]);
                  }
             }
-
         } else {
             // --- Vercel Target (Original Logic) ---
             let apiUrl = '/api/get-scores?mode=' + (this.gameMode === GAME_MODE.ENDLESS ? 'endless' : 'challenge');
@@ -1944,7 +1947,6 @@ class FlappyBirdGame {
         }
 
         if (currentBuildTarget === BUILD_TARGET_SCE) {
-            // --- SCE Target ---
             if (!this.isSceLoggedIn) {
                 const loginSuccess = await this.sceLogin();
                 if (!loginSuccess) {
@@ -1959,9 +1961,8 @@ class FlappyBirdGame {
                 const rankingKey = this.getSceRankingKey();
                 console.log(`Submitting score ${this.score} to SCE key: ${rankingKey}`);
                 const res = await SceSDK.cloud.set_number(rankingKey, this.score);
-                const result = await res.json();
 
-                if (result.code === 0) {
+                if (res.result) { // Check res.result for success indication
                     console.log('SCE score submitted successfully.');
                     this.scoreSubmitted = true;
                     if (submitButton) submitButton.textContent = '✓ 已提交';
@@ -1975,8 +1976,8 @@ class FlappyBirdGame {
                      this.loadLeaderboardInBackground(true); // Force reload and display
 
                 } else {
-                    console.error('提交 SCE 分数失败:', result);
-                    alert('提交分数到 SCE 平台失败。');
+                    console.error('提交 SCE 分数失败:', res.error);
+                    alert(`提交分数到 SCE 平台失败: ${res.error || '未知错误'}`);
                     if (submitButton) { // Re-enable button on failure
                         submitButton.disabled = false;
                         submitButton.textContent = '提交分数';
@@ -1985,12 +1986,11 @@ class FlappyBirdGame {
             } catch (error) {
                 console.error('提交 SCE 分数时出错:', error);
                 alert('提交分数到 SCE 平台时出错，请重试。');
-                 if (submitButton) { // Re-enable button on error
+                if (submitButton) { // Re-enable button on error
                     submitButton.disabled = false;
                     submitButton.textContent = '提交分数';
                 }
             }
-
         } else {
             // --- Vercel Target (Original Logic) ---
             const scoreData = {
@@ -2428,33 +2428,43 @@ class FlappyBirdGame {
         }
         if (this.isSceLoggedIn) {
             console.log("Already logged into SCE.");
-            return true; // Already logged in
+            return true;
         }
 
         console.log("Attempting SCE Login...");
-        this.gameState = GAME_STATE.SCE_LOGIN; // Show login state
-        // Optional: Display a message like "正在登录 SCE 平台..."
+        this.gameState = GAME_STATE.SCE_LOGIN;
         this.showLoadingMessage("正在登录 SCE 平台...");
 
         try {
-            await SceSDK.login();
-            this.isSceLoggedIn = true;
-            console.log('SCE Login Successful.');
-            try {
-                this.sceUserInfo = SceSDK.get_user_info();
-                console.log(`SCE User Info: ID=${this.sceUserInfo.user_id}, Name=${this.sceUserInfo.name}`);
-                // Can display welcome message in UI if needed
-                this.hideLoadingMessage(); // Hide login message
-                return true;
-            } catch (err) {
-                console.warn("Could not get SCE user info after login:", err);
+            const res = await SceSDK.login(); // SDK handles promise style
+            if (res.result) { // Check result field as per new SDK docs
+                this.isSceLoggedIn = true;
+                console.log('SCE Login Successful.');
+                try {
+                    this.sceUserInfo = SceSDK.get_user_info(); // This is synchronous
+                    console.log(`SCE User Info: ID=${this.sceUserInfo.user_id}, Name=${this.sceUserInfo.name}`);
+                    this.hideLoadingMessage();
+                    return true;
+                } catch (err) {
+                    console.warn("Could not get SCE user info after login:", err);
+                    this.hideLoadingMessage();
+                    return true; // Login succeeded, user info is optional here
+                }
+            } else {
+                console.error(`SCE Login Failed: ${res.error}`);
+                this.showError(`SCE 平台登录失败: ${res.error || '未知错误'}`);
+                this.gameState = GAME_STATE.MENU;
                 this.hideLoadingMessage();
-                return true; // Login succeeded, getting info is optional
+                return false;
             }
         } catch (error) {
-            console.error(`SCE Login Failed: ${error}`);
-            this.showError("SCE 平台登录失败，无法进行游戏或提交分数。请刷新重试。");
-            this.gameState = GAME_STATE.MENU; // Revert to menu
+            console.error("SCE Login Exception Object:", error); // 打印完整错误对象
+            let errorMessage = "SCE 平台登录时发生异常，请刷新重试。";
+            if (error && error.message) {
+                errorMessage += ` (详情: ${error.message})`;
+            }
+            this.showError(errorMessage);
+            this.gameState = GAME_STATE.MENU;
             this.hideLoadingMessage();
             return false;
         }
