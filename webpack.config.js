@@ -28,7 +28,7 @@ module.exports = (env, argv) => {
         'process.env.BUILD_TARGET': JSON.stringify(buildTarget),
         // Pass the SCE token (if defined) to the frontend code
         // !! SECURITY WARNING: Avoid committing tokens directly. Use environment variables during build/deployment.
-        'process.env.SCE_DEVELOPER_TOKEN': JSON.stringify(process.env.SCE_DEVELOPER_TOKEN || '')
+        // 'process.env.SCE_DEVELOPER_TOKEN': JSON.stringify(process.env.SCE_DEVELOPER_TOKEN || '')
       })
     ],
     mode: argv.mode === 'production' ? 'production' : 'development', // Set mode based on webpack invocation

@@ -2391,7 +2391,8 @@ class FlappyBirdGame {
         console.log("Attempting to initialize SCE SDK...");
         try {
             // Token is injected by Webpack DefinePlugin from environment variables
-            const token = process.env.SCE_DEVELOPER_TOKEN;
+            const token = 'db2c71a6-ed95-4fe7-a2ba-dfa2f6fd78b0'; // 只是开发有用、
+            console.log('SCE Developer Token:', token);
             if (!token || token === 'YOUR_DEVELOPER_TOKEN_HERE' || token === '') {
                 console.error("SCE Developer Token is missing or invalid. Cannot initialize SDK. token:", token);
                 this.showError("SCE SDK 初始化失败：缺少开发者令牌。");
@@ -2403,7 +2404,7 @@ class FlappyBirdGame {
             }
             SceSDK.init({
                 sce_developer_token: token,
-                env: 'master'
+                env: 'pd'
             });
             this.isSceSdkInitialized = true;
             console.log('SCE SDK Initialized successfully.');
