@@ -32,16 +32,6 @@ function setViewportHeight() {
     // 设置CSS变量
     document.documentElement.style.setProperty('--vh', `${vh}px`);
     
-    // --- 新增日志 ---
-    console.log(`[Viewport Debug] window.innerHeight: ${window.innerHeight}`);
-    console.log(`[Viewport Debug] document.documentElement.clientHeight: ${document.documentElement.clientHeight}`);
-    if (window.visualViewport) {
-        console.log(`[Viewport Debug] window.visualViewport.height: ${window.visualViewport.height}`);
-    } else {
-        console.log('[Viewport Debug] window.visualViewport not available.');
-    }
-    console.log(`[Viewport Debug] Calculated vh unit: ${vh}`);
-    // -------------
 
     // 直接应用到游戏容器和canvas
     const gameContainer = document.getElementById('game-container');
@@ -127,102 +117,6 @@ function simpleStringHash(str) {
     }
     return Math.abs(hash);
 }
-
-// --- On-screen Debug Console Start ---
-// Store the original console functions
-const originalConsoleLog = console.log;
-const originalConsoleError = console.error;
-const MAX_LOG_LINES = 30; // Max number of lines to display
-let logLines = [];
-let logDisplay = null;
-
-function ensureLogDisplayExists() {
-    if (!logDisplay) {
-        logDisplay = document.getElementById('onScreenLogDisplay');
-    }
-    if (!logDisplay && document.body) { // Create only if body exists
-        logDisplay = document.createElement('div');
-        logDisplay.id = 'onScreenLogDisplay';
-        logDisplay.style.position = 'fixed';
-        // --- 修改 bottom 属性以考虑安全区域 ---
-        logDisplay.style.bottom = 'calc(env(safe-area-inset-bottom, 0px) + 0px)'; // Start at safe area bottom
-        // ---------------------------------------
-        logDisplay.style.left = '0';
-        logDisplay.style.width = '100%';
-        logDisplay.style.maxHeight = '100px'; // Adjust as needed
-        logDisplay.style.overflowY = 'scroll';
-        logDisplay.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-        logDisplay.style.color = 'lightgreen';
-        logDisplay.style.fontFamily = 'monospace';
-        logDisplay.style.fontSize = '10px';
-        logDisplay.style.zIndex = '9999';
-        logDisplay.style.whiteSpace = 'pre-wrap';
-        logDisplay.style.boxSizing = 'border-box';
-        logDisplay.style.padding = '5px';
-        logDisplay.style.borderTop = '1px solid #444';
-        document.body.appendChild(logDisplay);
-    }
-    // Attempt to create again if body wasn't ready initially
-    if (!logDisplay) {
-        window.addEventListener('DOMContentLoaded', ensureLogDisplayExists);
-    }
-}
-
-function updateLogDisplay(prefix = '', ...args) {
-    ensureLogDisplayExists(); // Ensure the display exists
-
-    if (!logDisplay) return; // Don't proceed if display couldn't be created
-
-    // Format the message
-    const message = prefix + args.map(arg => {
-        if (arg instanceof Error) {
-            return `Error: ${arg.message}
-${arg.stack}`;
-        }
-        if (typeof arg === 'object' && arg !== null) {
-            try {
-                return JSON.stringify(arg, null, 2); // Pretty print objects
-            } catch (e) {
-                return '[Object]'; // Handle circular references etc.
-            }
-        }
-        return String(arg);
-    }).join(' ');
-
-    // Add to log lines array
-    logLines.push(message);
-    if (logLines.length > MAX_LOG_LINES) {
-        logLines.shift(); // Remove the oldest line
-    }
-
-    // Update the display content
-    logDisplay.textContent = logLines.join('\n');
-    // Scroll to the bottom
-    logDisplay.scrollTop = logDisplay.scrollHeight;
-}
-
-console.log = function(...args) {
-    originalConsoleLog.apply(console, args); // Call original log
-    updateLogDisplay('', ...args); // Update on-screen display
-};
-
-console.error = function(...args) {
-    originalConsoleError.apply(console, args); // Call original error
-    updateLogDisplay('ERROR: ', ...args); // Update on-screen display
-    if (logDisplay) {
-        // Highlight errors - you might want to style this differently
-        logDisplay.style.color = 'red';
-        // Optionally change back to green after a delay, or keep red for last error
-        setTimeout(() => { if(logDisplay) logDisplay.style.color = 'lightgreen'; }, 2000);
-    }
-};
-
-// Ensure the display is created once the DOM is ready
-window.addEventListener('DOMContentLoaded', () => {
-    ensureLogDisplayExists();
-    setViewportHeight(); // <--- 在 DOM Ready 后再进行初始调用
-});
-// --- On-screen Debug Console End ---
 
 // 游戏类
 class FlappyBirdGame {
@@ -383,7 +277,6 @@ class FlappyBirdGame {
         
         // 无尽模式按钮
         document.getElementById('endless-mode-button').addEventListener('click', () => {
-            console.log('[Button Click] Endless Mode button clicked.'); // <-- 新增按钮日志
             // 先保存当前模式，检查是否从每日挑战切换过来
             const wasInDailyChallenge = this.gameMode === GAME_MODE.DAILY_CHALLENGE;
             
@@ -406,7 +299,6 @@ class FlappyBirdGame {
         
         // 每日挑战按钮
         document.getElementById('daily-challenge-button').addEventListener('click', () => {
-            console.log('[Button Click] Daily Challenge button clicked.'); // <-- 新增按钮日志
             // 先保存当前模式，检查是否从无尽模式切换过来
             const wasInEndlessMode = this.gameMode === GAME_MODE.ENDLESS;
             
@@ -654,10 +546,7 @@ class FlappyBirdGame {
             // 检查是否有安全区域insets可用
             if (window.CSS && CSS.supports('padding-top: env(safe-area-inset-top)')) {
                 const safeAreaTop = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--safe-area-inset-top')) || 0;
-                // --- 新增日志 ---
                 const safeAreaBottom = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--safe-area-inset-bottom')) || 0;
-                console.log(`[Viewport Debug] Detected Safe Area Insets - Top: ${safeAreaTop}, Bottom: ${safeAreaBottom}`);
-                // -------------
                 
                 // 如果有安全区域，调整游戏元素
                 if (safeAreaTop > 0) {
@@ -671,12 +560,9 @@ class FlappyBirdGame {
     
     // 开始游戏
     async startGame() {
-        console.log('[startGame] Attempting to start game...'); // <-- 已有日志1
         if (!this.checkScreenHeight(window.innerHeight)) {
-            console.log('[startGame] checkScreenHeight returned false. Game will not start.'); // <-- 已有日志2
             return;
         }
-        console.log('[startGame] checkScreenHeight passed.'); // <-- 新增日志4
 
         // --- SCE Login Check Modification ---
         if (currentBuildTarget === BUILD_TARGET_SCE) {
@@ -685,11 +571,9 @@ class FlappyBirdGame {
                 // Game proceeds, SDK calls later will attempt to function or fail gracefully.
             }
         }
-        console.log('[startGame] Passed SCE check block.'); // <-- 新增日志5
         // --- End Modification ---
 
         this.gameState = GAME_STATE.PLAYING;
-        console.log('[startGame] gameState set to PLAYING.'); // <-- 已有日志3
         this.startScreen.style.display = 'none';
         this.gameOverScreen.style.display = 'none';
         document.getElementById('victory-screen').style.display = 'none';
@@ -2491,7 +2375,6 @@ class FlappyBirdGame {
         
         // 屏幕上旗子数量变化时输出日志
         if (flagsDrawn > 0 && (!this.lastFlagsDrawn || this.lastFlagsDrawn !== flagsDrawn)) {
-            console.log(`【调试】当前屏幕绘制了${flagsDrawn}个旗子`);
             this.lastFlagsDrawn = flagsDrawn;
         }
     }
