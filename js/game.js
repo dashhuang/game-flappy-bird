@@ -4,7 +4,7 @@
  */
 
 // Import SCE SDK (will be available after bundling) - Updated import style
-import SceSDK from 'sce-game-sdk';
+import 'sce-game-sdk';
 
 if (typeof SceSDK !== 'undefined' && SceSDK.init) { // Check for a function on SceSDK
     console.log('SCE SDK 导入成功');
@@ -77,7 +77,7 @@ const GAME_STATE = {
     GAME_OVER: 2,
     LOADING: 3,  // 加载状态
     VICTORY: 4,   // 胜利状态（挑战模式完成）
-    SCE_LOGIN: 5 // Added state for SCE login process
+    // SCE_LOGIN: 5 // Removed state for SCE login process (no longer needed)
 };
 
 // 游戏模式
@@ -321,7 +321,7 @@ class FlappyBirdGame {
 
         // Initialize SCE SDK if target is 'sce'
         if (currentBuildTarget === BUILD_TARGET_SCE) {
-            this.initializeSceSDK();
+            this.initializeSceSDK(); // This will now also try to get user info
         } else {
             // For Vercel build, load config immediately
             this.loadGameConfig();
@@ -681,11 +681,8 @@ class FlappyBirdGame {
         // --- SCE Login Check Modification ---
         if (currentBuildTarget === BUILD_TARGET_SCE) {
             if (!this.isSceSdkInitialized || !this.isSceLoggedIn) {
-                console.warn("SCE SDK not ready or not logged in. Proceeding without SCE features (login/leaderboard).");
-                // --- 注释掉或移除阻止游戏开始的代码 ---
-                // this.showError("SCE SDK 未初始化，无法开始游戏。"); 
-                // return; 
-                // -------------------------------------
+                console.warn("SCE SDK not ready or user not logged in. Proceeding without some SCE features (e.g., leaderboard names, auto-submit).");
+                // Game proceeds, SDK calls later will attempt to function or fail gracefully.
             }
         }
         console.log('[startGame] Passed SCE check block.'); // <-- 新增日志5
@@ -1024,15 +1021,8 @@ class FlappyBirdGame {
 
         if (currentBuildTarget === BUILD_TARGET_SCE) {
             // SCE Target: Fetch leaderboard from SCE
-             if (!this.isSceLoggedIn) {
-                // Attempt login first if needed for fetching rank
-                const loginSuccess = await this.sceLogin();
-                if (!loginSuccess) {
-                     console.warn("Cannot check SCE leaderboard qualification without login.");
-                     fetchError = true;
-                }
-             }
-             if (!fetchError && this.isSceLoggedIn) {
+            // No explicit login call needed here; SceSDK.cloud.get_top_rank should handle it.
+             if (!fetchError) { // If no previous fetch error related to other things
                  try {
                      const rankingKey = this.getSceRankingKey();
                      const options = {
@@ -1908,12 +1898,8 @@ class FlappyBirdGame {
 
         if (currentBuildTarget === BUILD_TARGET_SCE) {
             if (!this.isSceSdkInitialized || !this.isSceLoggedIn) {
-                 console.warn("SCE SDK not ready or not logged in, cannot load leaderboard.");
-                 const loginSuccess = await this.sceLogin();
-                 if (!loginSuccess) {
-                    this.displayLeaderboard([]);
-                    return;
-                 }
+                 console.warn("SCE SDK not ready or user not logged in. Proceeding without some SCE features (e.g., leaderboard names, auto-submit).");
+                 // Game proceeds, SDK calls later will attempt to function or fail gracefully.
             }
             try {
                 const rankingKey = this.getSceRankingKey();
@@ -2046,19 +2032,19 @@ class FlappyBirdGame {
         // SCE build uses SCE nickname, Vercel build uses input field
         if (currentBuildTarget === BUILD_TARGET_SCE) {
             if (!this.sceUserInfo || !this.sceUserInfo.name) {
-                console.warn("SCE user info not available, using default name.");
-                // Attempt to get user info again or use ID?
-                 try {
-                    this.sceUserInfo = SceSDK.get_user_info();
-                    playerName = this.sceUserInfo.name || `User_${this.sceUserInfo.user_id.substring(0,4)}`;
-                 } catch(err) {
-                     playerName = `User_${Date.now().toString().slice(-4)}`; // Fallback name
-                 }
+                console.warn("SCE user info not available for submission name. Attempting to refresh.");
+                await this.updateSceUserInfo(); // Try to refresh user info
+                if (this.isSceLoggedIn && this.sceUserInfo && this.sceUserInfo.name) {
+                    playerName = this.sceUserInfo.name;
+                } else {
+                    // Fallback name if user info is still not available
+                    playerName = `User_${(this.sceUserInfo && this.sceUserInfo.user_id) ? this.sceUserInfo.user_id.substring(0,4) : Date.now().toString().slice(-4)}`;
+                    console.log(`Using fallback player name: ${playerName}`);
+                }
             } else {
                 playerName = this.sceUserInfo.name;
             }
             console.log(`Using SCE Nickname for submission: ${playerName}`);
-            // No need to validate input field in SCE mode if we use the nickname
         } else {
             // Vercel mode: validate input field
             if (!nameInput || !nameInput.value.trim()) {
@@ -2076,16 +2062,12 @@ class FlappyBirdGame {
         }
 
         if (currentBuildTarget === BUILD_TARGET_SCE) {
-            if (!this.isSceLoggedIn) {
-                const loginSuccess = await this.sceLogin();
-                if (!loginSuccess) {
-                    if (submitButton) { // Re-enable button on login failure
-                        submitButton.disabled = false;
-                        submitButton.textContent = '提交分数';
-                    }
-                    return; // Stop submission if login failed
-                }
+            if (!this.isSceSdkInitialized) { // Check if SDK is initialized
+                 console.warn("SCE SDK not initialized, cannot load leaderboard.");
+                 this.displayLeaderboard([]);
+                 return;
             }
+            // No explicit login call; SceSDK.cloud.set_number should handle it.
             try {
                 const rankingKey = this.getSceRankingKey();
                 console.log(`Submitting score ${this.score} to SCE key: ${rankingKey}`);
@@ -2516,87 +2498,64 @@ class FlappyBirdGame {
 
     // --- SCE SDK Specific Methods ---
 
-    initializeSceSDK() {
+    async initializeSceSDK() { // Made async
         console.log("Attempting to initialize SCE SDK...");
         try {
-            // Token is injected by Webpack DefinePlugin from environment variables
-            const token = 'db2c71a6-ed95-4fe7-a2ba-dfa2f6fd78b0'; // 只是开发有用、
+            const token = 'db2c71a6-ed95-4fe7-a2ba-dfa2f6fd78b0';
             console.log('SCE Developer Token:', token);
             if (!token || token === 'YOUR_DEVELOPER_TOKEN_HERE' || token === '') {
                 console.error("SCE Developer Token is missing or invalid. Cannot initialize SDK. token:", token);
                 this.showError("SCE SDK 初始化失败：缺少开发者令牌。");
-                // Proceed with default config for local testing? Or block? Let's block.
-                this.gameState = GAME_STATE.MENU; // Or a dedicated error state
+                this.gameState = GAME_STATE.MENU;
                 if (this.loadingScreen) this.loadingScreen.style.display = 'none';
                 if (this.startScreen) this.startScreen.style.display = 'flex';
-                return; // Stop initialization
+                return;
             }
             SceSDK.init({
                 sce_developer_token: token,
-                env: 'pd'
+                // project_id: 'YOUR_PROJECT_ID' // Optional, not currently used
             });
             this.isSceSdkInitialized = true;
             console.log('SCE SDK Initialized successfully.');
-            // Now we can proceed to load the game using default/local config
+
+            // Attempt to get user info immediately after init
+            await this.updateSceUserInfo();
+
+            // Now proceed to load the game using default/local config
             this.initGameWithLocalConfig();
 
         } catch (error) {
             console.error("Failed to initialize SCE SDK:", error);
             this.showError("SCE SDK 初始化失败，请检查控制台。");
-            // Fallback or show error state
             this.gameState = GAME_STATE.MENU;
             if (this.loadingScreen) this.loadingScreen.style.display = 'none';
             if (this.startScreen) this.startScreen.style.display = 'flex';
         }
     }
 
-    async sceLogin() {
+    async updateSceUserInfo() {
         if (!this.isSceSdkInitialized) {
-            console.error("SCE SDK not initialized, cannot login.");
-            this.showError("SCE SDK 未初始化，无法登录。");
-            return false;
+            console.warn("SCE SDK not initialized, cannot get user info.");
+            this.isSceLoggedIn = false;
+            this.sceUserInfo = null;
+            return;
         }
-        if (this.isSceLoggedIn) {
-            console.log("Already logged into SCE.");
-            return true;
-        }
-
-        console.log("Attempting SCE Login...");
-        this.gameState = GAME_STATE.SCE_LOGIN;
-        this.showLoadingMessage("正在登录 SCE 平台...");
-
+        console.log("Attempting to get SCE User Info...");
         try {
-            const res = await SceSDK.login(); // SDK handles promise style
-            if (res.result) { // Check result field as per new SDK docs
+            const userInfo = await SceSDK.get_user_info();
+            if (userInfo && userInfo.user_id) { 
+                this.sceUserInfo = userInfo;
                 this.isSceLoggedIn = true;
-                console.log('SCE Login Successful.');
-                try {
-                    this.sceUserInfo = SceSDK.get_user_info(); // This is synchronous
-                    console.log(`SCE User Info: ID=${this.sceUserInfo.user_id}, Name=${this.sceUserInfo.name}`);
-                    this.hideLoadingMessage();
-                    return true;
-                } catch (err) {
-                    console.warn("Could not get SCE user info after login:", err);
-                    this.hideLoadingMessage();
-                    return true; // Login succeeded, user info is optional here
-                }
+                console.log(`SCE User Info obtained: ID=${this.sceUserInfo.user_id}, Name=${this.sceUserInfo.name}`);
             } else {
-                console.error(`SCE Login Failed: ${res.error}`);
-                this.showError(`SCE 平台登录失败: ${res.error || '未知错误'}`);
-                this.gameState = GAME_STATE.MENU;
-                this.hideLoadingMessage();
-                return false;
+                console.warn("Failed to get SCE user info or user not logged in. Response:", userInfo);
+                this.isSceLoggedIn = false;
+                this.sceUserInfo = null;
             }
         } catch (error) {
-            console.error("SCE Login Exception Object:", error); // 打印完整错误对象
-            let errorMessage = "SCE 平台登录时发生异常，请刷新重试。";
-            if (error && error.message) {
-                errorMessage += ` (详情: ${error.message})`;
-            }
-            this.showError(errorMessage);
-            this.gameState = GAME_STATE.MENU;
-            this.hideLoadingMessage();
-            return false;
+            console.error("Error calling SceSDK.get_user_info():", error);
+            this.isSceLoggedIn = false;
+            this.sceUserInfo = null;
         }
     }
 
@@ -2670,7 +2629,7 @@ class FlappyBirdGame {
 
         // Try SCE login in background after showing menu? Or wait for first action?
         // Let's wait for the first action (startGame or submitScore) that requires login.
-        // this.sceLogin(); // Don't login immediately
+        // No longer calling this.sceLogin() here.
     }
     // ---------------------------------------------
 }
