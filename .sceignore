@@ -1,6 +1,9 @@
 # 版本控制
 .git/
 
+# 商店资料
+tap_assets/
+
 # 依赖和构建相关
 node_modules/
 package.json
