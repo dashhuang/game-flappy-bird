@@ -212,6 +212,7 @@ class FlappyBirdGame {
         this.isSceSdkInitialized = false;
         this.sceUserInfo = null;
         this.isSceLoggedIn = false;
+        this.currentPlayerName = null; // 新增：存储当前玩家的名字
 
         // Initialize SCE SDK if target is 'sce'
         if (currentBuildTarget === BUILD_TARGET_SCE) {
@@ -1096,6 +1097,12 @@ class FlappyBirdGame {
         
         // 新增：重置管道对计数器
         this.pipePairSpawnCount = 0;
+        this.currentPlayerName = null; // 重置当前玩家名字
+
+        // 如果是SCE模式且用户已登录，则恢复currentPlayerName
+        if (currentBuildTarget === BUILD_TARGET_SCE && this.isSceLoggedIn && this.sceUserInfo && this.sceUserInfo.name) {
+            this.currentPlayerName = this.sceUserInfo.name;
+        }
     }
     
     // 小鸟跳跃
@@ -1110,6 +1117,11 @@ class FlappyBirdGame {
             
             // 设置目标旋转角度为向上姿态
             this.bird.targetRotation = -20;
+
+            // 添加震动效果
+            if (navigator.vibrate) {
+                navigator.vibrate(1); // 震动25毫秒
+            }
         } else if (this.gameState === GAME_STATE.MENU) {
             this.startGame();
         } else if (this.gameState === GAME_STATE.GAME_OVER && this.canRestartAfterGameOver && !this.gameJustEnded) {
@@ -1893,6 +1905,10 @@ class FlappyBirdGame {
             
             scores.forEach((score, index) => {
                 const row = document.createElement('tr');
+                // 检查是否是当前玩家的条目
+                if (this.currentPlayerName && score.name === this.currentPlayerName) {
+                    row.classList.add('current-player-score');
+                }
                 row.innerHTML = `
                     <td>${index + 1}</td>
                     <td>${score.name}</td>
@@ -1938,6 +1954,7 @@ class FlappyBirdGame {
             playerName = nameInput.value.trim();
         }
 
+        this.currentPlayerName = playerName; // 保存当前玩家的名字
 
         // Disable button
         if (submitButton) {
@@ -2421,24 +2438,38 @@ class FlappyBirdGame {
             console.warn("SCE SDK not initialized, cannot get user info.");
             this.isSceLoggedIn = false;
             this.sceUserInfo = null;
+            this.currentPlayerName = null; // 确保在SDK未初始化时也清除
             return;
         }
         console.log("Attempting to get SCE User Info...");
         try {
-            const userInfo = await SceSDK.get_user_info();
-            if (userInfo && userInfo.user_id) { 
-                this.sceUserInfo = userInfo;
-                this.isSceLoggedIn = true;
-                console.log(`SCE User Info obtained: ID=${this.sceUserInfo.user_id}, Name=${this.sceUserInfo.name}`);
+            const res = await SceSDK.get_user_info(); // Modified this line
+            if (res && res.result) { // Modified this line, check for res and res.result
+                this.sceUserInfo = res.result; // Assign the content of res.result
+                // Further check if user_id is present in the result, as per original logic and good practice
+                if (this.sceUserInfo.user_id) { // Simplified this line
+                    this.isSceLoggedIn = true;
+                    console.log(`SCE User Info obtained: ID=${this.sceUserInfo.user_id}, Name=${this.sceUserInfo.name}`);
+                    this.currentPlayerName = this.sceUserInfo.name; // 保存SCE玩家名字
+                } else {
+                    // res.result was present but user_id was missing/falsy within it.
+                    console.warn("SCE get_user_info was successful but the result object did not contain a valid user_id. Response:", res);
+                    this.isSceLoggedIn = false;
+                    this.sceUserInfo = null; // Ensure consistent state
+                    this.currentPlayerName = null; // 清除玩家名字
+                }
             } else {
-                console.warn("Failed to get SCE user info or user not logged in. Response:", userInfo);
+                // res was falsy, or res.result was falsy. Use res.error as per SDK docs.
+                console.warn(`Failed to get SCE user info or user not logged in. Error: ${res ? res.error : 'Response undefined or null'}. Full Response:`, res);
                 this.isSceLoggedIn = false;
                 this.sceUserInfo = null;
+                this.currentPlayerName = null; // 清除玩家名字
             }
         } catch (error) {
             console.error("Error calling SceSDK.get_user_info():", error);
             this.isSceLoggedIn = false;
             this.sceUserInfo = null;
+            this.currentPlayerName = null; // 清除玩家名字
         }
     }
 
