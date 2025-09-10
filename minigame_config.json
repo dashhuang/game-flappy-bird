@@ -1,12 +1,12 @@
  {
     "projectID": "flappy_bird",
-    "tapID": 463846535,
+    "tapID": 45,
     "title": "Flappy Bird 无广告",
     "outDirectory": ".",
     "screenOrientation": "portrait",
-    "description": "无广告、支持TapTap排行榜的免下载游戏。经典的 Flappy Bird 玩法，支持无尽模式和每日挑战。",
+    "description": "无广告、支持TapTap排行榜的免下载游戏。经典的 Flappy Bird 玩法，支持无尽模式和每日挑战！",
     "tags": ["休闲", "免下载", "无广告", "排行榜"],
-    "versionName": "1.0.1",
+    "versionName": "1.0.2",
     "banner": ["tap_assets/banner.jpg"],
     "icon": ["tap_assets/icon.jpg"],
     "screenshots": ["tap_assets/a.jpg", "tap_assets/b.jpg"]
