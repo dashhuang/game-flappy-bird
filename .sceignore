@@ -1,0 +1,34 @@
+# 版本控制
+.git/
+
+# 商店资料
+tap_assets/
+
+# 依赖和构建相关
+node_modules/
+package.json
+package-lock.json
+webpack.config.js
+dist/bundle.js.map
+
+# 项目配置和文档
+minigame_config.json
+vercel.json
+.gitignore
+readme.md
+guide-web.md
+guide-challenge.md
+README-LOCAL.MD
+
+# 源代码 (已打包)
+js/
+
+# 服务器端或特定环境脚本
+server.js
+api/
+
+# 开发/管理页面
+admin.html
+
+# 操作系统文件
+.DS_Store 

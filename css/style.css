@@ -278,7 +278,7 @@ button:active {
     margin-top: 20px;
     max-width: 90%;
     width: 100%;
-    max-height: 35vh; /* 降低高度，避免占用过多屏幕空间 */
+    max-height: 50vh; /* 降低高度，避免占用过多屏幕空间 */
     overflow-y: auto;
     background-color: rgba(0, 0, 0, 0.5);
     border-radius: 8px;
@@ -302,6 +302,12 @@ button:active {
 #leaderboard-list th {
     background-color: rgba(0, 0, 0, 0.3);
     font-weight: bold;
+}
+
+/* 新增：当前玩家分数行样式 */
+.current-player-score td {
+    font-weight: bold;
+    color: #FFD700; /* 也可以考虑使用不同的颜色高亮 */
 }
 
 /* 排行榜加载中状态样式 */
@@ -344,7 +350,7 @@ button:active {
     }
     
     #leaderboard-container {
-        max-height: 28vh; /* 在小屏幕手机上进一步降低高度 */
+        max-height: 45vh; /* 在小屏幕手机上进一步降低高度 */
         margin-bottom: 35px; /* 增加底部间距 */
     }
     
@@ -359,7 +365,7 @@ button:active {
 /* 极小屏幕上的特殊处理 */
 @media (max-height: 600px) {
     #leaderboard-container {
-        max-height: 25vh; /* 更小的屏幕上进一步减少高度 */
+        max-height: 42vh; /* 更小的屏幕上进一步减少高度 */
         margin-bottom: 25px;
     }
     
@@ -640,7 +646,7 @@ button:active {
     
     /* 优化排行榜样式 */
     #leaderboard-container {
-        max-height: 22vh;
+        max-height: 40vh;
         padding: 5px;
         margin-bottom: 8px;
     }

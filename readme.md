@@ -18,6 +18,9 @@
 - 🏅 **新增：每日挑战模式** - 每天都有固定种子生成的关卡，挑战50个管道！
 - 🔄 **新增：实时排行榜更新** - 提交分数后显示排行榜更新动画
 - 🔗 **新增：社交媒体分享预览** - 在Telegram、WhatsApp等平台分享链接时显示游戏预览
+- ✨ **新增：两种构建目标**
+  - **Vercel 版本**: 使用 Vercel Serverless Functions 和 Vercel KV 实现后端排行榜和配置加载（原有方式）。
+  - **SCE 版本**: 使用 [SCE SDK](https://www.npmjs.com/package/sce-game-sdk) 实现玩家认证、云存储和排行榜，可作为纯静态网站部署到支持的平台。
 
 ### 游戏机制
 - 🔄 精心设计的三阶段难度系统 (适用于无尽模式)
@@ -37,12 +40,11 @@
 - 📱 **移动设备**：轻触屏幕使小鸟向上飞
 
 ### 游戏目标
-1.  **选择模式**：在开始界面选择"无尽模式"或"每日挑战"。
-2.  **无尽模式**：
-    *   引导小鸟穿过管道之间的间隙。
+1.  引导小鸟穿过管道之间的间隙。
+2.  **无尽模式**: 
     *   每成功通过一对管道得1分。
     *   尽可能获得高分，挑战更高的难度。
-    *   当分数足够高（打破个人记录且能进入前20名）时，可以提交成绩到全球排行榜。
+    *   当分数足够高（打破个人记录且能进入全球排行榜前20）时，可以提交成绩。
 3.  **每日挑战**：
     *   成功通过全部50个管道，获得50分即为挑战成功。
     *   挑战成功或失败后，分数会被记录到当天的每日挑战排行榜（如果满足提交条件）。
@@ -55,61 +57,134 @@
 - 🔄 `requestAnimationFrame` 实现平滑游戏循环
 - 📱 响应式设计，适配各种设备和屏幕方向
 - 💾 `localStorage` 保存本地最高分记录 (区分无尽模式和每日挑战模式)
-- ⚙️ 动态从后端API加载游戏配置参数
+- ⚙️ 根据构建目标选择后端实现 (Vercel API 或 SCE SDK)
+- 📦 使用 Webpack 进行 JavaScript 模块打包
 
-### 后端技术 (Vercel Serverless Functions)
-- ☁️ Vercel 托管和 Serverless Functions 部署
-- 📊 **数据库**: 使用 Vercel KV (基于 Redis) 存储全球排行榜数据。
-- 🔌 **API 接口** (`/api/`):
-    - `game-config`: 获取游戏配置参数 (如重力、速度、难度阈值等)。
-    - `get-scores`: 获取排行榜前20名数据 (区分模式)。
-    - `submit-score`: 提交玩家分数到排行榜 (包含模式和日期信息，有条件限制)。
-    - `verify-admin`: (POST) 验证管理员密码。
-    - `clear-leaderboard`: (POST) 清空排行榜数据 (需要管理员密码)。
+### 后端技术
+- **Vercel 版本后端 (Vercel Serverless Functions)**:
+  - ☁️ Vercel 托管和 Serverless Functions 部署
+  - 📊 **数据库**: 使用 Vercel KV (基于 Redis) 存储全球排行榜数据。
+  - 🔌 **API 接口** (`/api/`):
+    - `game-config`: 获取游戏配置参数。
+    - `get-scores`: 获取排行榜前20名数据。
+    - `submit-score`: 提交玩家分数到排行榜。
+    - `verify-admin`: 验证管理员密码。
+    - `clear-leaderboard`: 清空排行榜数据。
+- **SCE 版本后端**: 
+  - ✨ 使用 [SCE SDK](https://www.npmjs.com/package/sce-game-sdk) 直接与星火对战平台服务交互，实现登录、数据存取和排行榜功能。
 
 ### 性能优化
 - 🚀 高效的碰撞检测算法
 - 🧹 自动清理屏幕外的游戏对象减少内存占用
 - 📊 动态调整游戏参数以适应不同设备性能
 
-## 本地开发
+## 环境配置 (SCE 版本)
+
+如果你需要构建或测试 SCE 版本，需要在项目根目录创建一个 `.env` 文件，并配置以下环境变量：
+
+```dotenv
+# .env 文件内容
+
+# 构建目标，用于本地构建 SCE 版本时设置为 'sce'
+BUILD_TARGET=sce
+
+# 你的 SCE 开发者令牌
+# !! 请替换为你的真实令牌 !!
+SCE_DEVELOPER_TOKEN=YOUR_DEVELOPER_TOKEN_HERE
+```
+
+**重要提示：** `.env` 文件已被添加到 `.gitignore` 中，请不要将其提交到版本控制系统，以保护你的开发者令牌。
+
+## 构建项目
+
+由于项目现在使用了 JavaScript 模块和 npm 包 (SCE SDK)，你需要先构建项目才能运行。
+
+1.  **安装依赖**: 
+    ```bash
+    npm install
+    ```
+2.  **构建不同版本**:
+    *   **构建 SCE 版本** (用于本地测试或静态部署):
+      ```bash
+      # 确保 .env 文件中 BUILD_TARGET=sce 并已配置 SCE_DEVELOPER_TOKEN
+      npm run build 
+      ```
+      这将生成包含 SCE SDK 逻辑的 `dist/bundle.js` 文件。
+
+    *   **构建 Vercel 版本** (用于部署到 Vercel 或本地测试模拟 API):
+      ```bash
+      npm run build:vercel
+      ```
+      这将生成包含调用 `/api/` 接口逻辑的 `dist/bundle.js` 文件。
+
+## 本地开发与测试
 
 1.  克隆仓库
-```bash
-git clone https://github.com/dashhuang/game-flappy-bird.git
-cd game-flappy-bird
-```
+    ```bash
+    git clone https://github.com/dashhuang/game-flappy-bird.git
+    cd game-flappy-bird
+    ```
 
 2.  安装依赖
-```bash
-npm install
-```
+    ```bash
+    npm install
+    ```
 
-3.  启动本地开发服务器 (包含模拟API)
-```bash
-npm run dev
-```
-   这将使用 `nodemon` 启动一个基于 `Express` 的本地服务器 (`server.js`)，该服务器提供了与 Vercel Functions 类似的模拟 API 接口，方便本地开发和测试。
+3.  **测试 Vercel 版本 (带模拟 API)**:
+    *   首先，构建 Vercel 版本的前端代码:
+      ```bash
+      npm run build:vercel 
+      ```
+    *   然后，启动本地开发服务器 (包含模拟 API):
+      ```bash
+      npm run dev
+      ```
+    *   在浏览器中访问 `http://localhost:3000`。这个模式会使用 `server.js` 模拟 Vercel 的 API 接口，方便测试 Vercel 版本的排行榜和分数提交逻辑。
 
-4.  在浏览器中访问 `http://localhost:3000`
+4.  **测试 SCE 版本 (纯静态)**:
+    *   确保你已经在 `.env` 文件中正确配置了 `BUILD_TARGET=sce` 和 `SCE_DEVELOPER_TOKEN`。
+    *   构建 SCE 版本:
+      ```bash
+      npm run build
+      ```
+    *   使用一个简单的静态文件服务器启动项目 (例如 `http-server`):
+      ```bash
+      # 如果未安装 http-server: npm install --global http-server
+      npx http-server . -p 8080 
+      ```
+    *   在浏览器中访问 `http://localhost:8080`。这个模式会直接与 SCE 平台交互进行登录和排行榜操作。
 
-**注意**: 本地模拟服务器 (`server.js`) 使用写死的配置和排行榜数据，不连接实际的 Redis 数据库。
+**注意**: `server.js` 仅用于模拟 Vercel API，不包含 SCE SDK 逻辑。
 
 ## 部署
 
-项目已配置为自动部署到 Vercel：
-1.  推送到主分支的代码将自动触发 Vercel 部署。
-2.  排行榜功能依赖于 Vercel KV (需要在 Vercel 项目设置中创建并连接 KV 数据库)。
-3.  管理功能 (清空排行榜) 需要在 Vercel 项目中设置名为 `ADMIN_PASSWORD` 的环境变量。
+### 部署到 Vercel (Vercel 版本)
 
-`vercel.json` 文件配置了静态文件服务和 API 路由。
+项目已配置为自动部署 Vercel 版本到 Vercel：
+1.  推送到主分支的代码将自动触发 Vercel 部署。
+2.  Vercel 会自动运行 `npm install` 和 `npm run build:vercel` 命令。
+3.  排行榜功能依赖于 Vercel KV (需要在 Vercel 项目设置中创建并连接 KV 数据库)。
+4.  管理功能 (清空排行榜) 需要在 Vercel 项目中设置名为 `ADMIN_PASSWORD` 的环境变量。
+
+`vercel.json` 文件配置了构建命令、静态文件服务和 API 路由。
+
+### 部署 SCE 版本 (静态部署)
+
+1.  确保在构建环境中设置了正确的 `SCE_DEVELOPER_TOKEN` 环境变量。
+2.  运行 SCE 构建命令: `npm run build`。
+3.  将项目根目录下的**静态文件**部署到任何支持静态网站托管的平台。需要部署的文件包括：
+    *   `index.html`
+    *   `css/style.css`
+    *   `assets/` 目录下的所有资源
+    *   构建生成的 `dist/bundle.js` 文件
+    *   (可选) `admin.html` (如果你的部署平台支持 Vercel 相关的管理功能环境变量)
 
 ## 管理功能
 
 项目包含一个简单的管理页面 `admin.html` (访问 `/admin.html`)。
 
 - **登录**: 需要输入在 Vercel 环境变量中设置的 `ADMIN_PASSWORD` 进行登录。
-- **清空排行榜**: 登录后可以清空 Vercel KV 中的所有排行榜数据。**此操作不可逆，请谨慎使用！**
+- **清空排行榜**: 登录后可以清空 **Vercel KV** 中的所有排行榜数据。**此操作不可逆，请谨慎使用！** (此功能仅对 Vercel 版本有效)
 
 ## 支持的浏览器
 

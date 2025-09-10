@@ -1,9 +1,9 @@
 {
     "name": "flappy-bird-game",
     "version": 2,
-    "buildCommand": null,
+    "installCommand": "npm install",
+    "buildCommand": "npm run build:vercel",
     "outputDirectory": ".",
-    "installCommand": null,
     "routes": [
         { "handle": "filesystem" },
         { "src": "/api/(.*)", "dest": "/api/$1" }
